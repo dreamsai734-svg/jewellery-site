@@ -5,11 +5,59 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <style>
-    body { font-family: Arial; padding: 20px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 15px; }
-    .card { border:1px solid #ddd; padding:10px; border-radius:10px; cursor:pointer; }
-    img { width:100%; border-radius:8px; }
-    .selected { border:3px solid green; }
+    body {
+      font-family: Arial;
+      padding: 20px;
+      background: #f7f7f7;
+    }
+
+    h2 { text-align: center; }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      gap: 10px;
+    }
+
+    select, button {
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 15px;
+    }
+
+    .card {
+      background: white;
+      padding: 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      text-align: center;
+      transition: 0.2s;
+    }
+
+    .card:hover {
+      transform: scale(1.03);
+    }
+
+    .card.selected {
+      border: 3px solid green;
+    }
+
+    img {
+      width: 100%;
+      border-radius: 8px;
+    }
+
+    #selectedArea {
+      margin-top: 20px;
+      text-align: center;
+    }
 
     #selectedArea img {
       width: 80px;
@@ -17,6 +65,22 @@
       border-radius: 6px;
       border: 2px solid #ccc;
     }
+
+    .whatsapp-btn {
+      margin-top: 20px;
+      display: block;
+      width: 200px;
+      margin-left: auto;
+      margin-right: auto;
+      background: #25D366;
+      color: white;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
   </style>
 </head>
 
@@ -24,20 +88,26 @@
 
 <h2>Jewellery Selector</h2>
 
-<select id="filter" onchange="render()"></select>
+<div class="controls">
+  <select id="filter" onchange="render()"></select>
+</div>
 
 <div class="grid" id="grid"></div>
 
-<h3>Selected Items (Collage Preview)</h3>
+<h3 style="text-align:center;">Selected Preview</h3>
 <div id="selectedArea"></div>
 
-<button onclick="sendWhatsApp()">Send to WhatsApp</button>
+<button class="whatsapp-btn" onclick="sendWhatsApp()">
+  Send to WhatsApp
+</button>
 
 <script>
 let data = [];
 let selected = [];
 
-fetch("YOUR_SHEET_API_URL")
+const API_URL = "https://script.google.com/macros/s/AKfycbxurQyyCGIRT2nTBTEZJMBi3lCuAHH1j3wC3vOjk7d3gAqqTiFVIgMyw37pvt6E4Q/exec";
+
+fetch(API_URL)
 .then(res => res.json())
 .then(json => {
   data = json;
@@ -45,18 +115,18 @@ fetch("YOUR_SHEET_API_URL")
   render();
 });
 
-function initFilter(){
-  let types = [...new Set(data.map(d => d.Type))];
+function initFilter() {
+  let types = [...new Set(data.map(d => d["Type"]))];
   let filter = document.getElementById("filter");
 
   filter.innerHTML = '<option value="">All</option>' +
-    types.map(t => `<option>${t}</option>`).join("");
+    types.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
-function render(){
-  let f = document.getElementById("filter").value;
+function render() {
+  let filterValue = document.getElementById("filter").value;
 
-  let filtered = data.filter(d => !f || d.Type === f);
+  let filtered = data.filter(d => !filterValue || d["Type"] === filterValue);
 
   let html = "";
 
@@ -64,9 +134,10 @@ function render(){
     let isSelected = selected.includes(item["Serial No"]);
 
     html += `
-      <div class="card ${isSelected ? 'selected' : ''}" onclick='toggleSelect(${JSON.stringify(item)})'>
+      <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item["Serial No"]}")'>
         <img src="${item.URL}">
         <p>${item["Serial No"]}</p>
+        <small>${item["Type"]}</small>
       </div>
     `;
   });
@@ -75,21 +146,17 @@ function render(){
   renderSelected();
 }
 
-function toggleSelect(item){
-  let id = item["Serial No"];
-
-  if(selected.includes(id)){
+function toggle(id) {
+  if (selected.includes(id)) {
     selected = selected.filter(x => x !== id);
   } else {
     selected.push(id);
   }
-
   render();
 }
 
-function renderSelected(){
+function renderSelected() {
   let area = document.getElementById("selectedArea");
-
   let html = "";
 
   data.filter(d => selected.includes(d["Serial No"]))
@@ -100,7 +167,7 @@ function renderSelected(){
   area.innerHTML = html;
 }
 
-function sendWhatsApp(){
+function sendWhatsApp() {
   let text = "Selected Jewellery:\n\n";
 
   data.filter(d => selected.includes(d["Serial No"]))
