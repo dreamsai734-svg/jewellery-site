@@ -11,9 +11,25 @@
 
 <h2>Jewellery Selector</h2>
 
+<div class="tabs">
+  <button id="tabBrowseBtn" class="tab-btn active" onclick="switchTab('browse')">Browse Items</button>
+  <button id="tabFinalTrayBtn" class="tab-btn" onclick="switchTab('finalTray')">Final Tray by Serial</button>
+</div>
+
+<section id="browseTab" class="tab-section active">
+
 <!-- FILTER -->
 <div class="controls">
-  <select id="filter" onchange="render()"></select>
+  <select id="filterType" onchange="render()"></select>
+  <select id="filterStatus" onchange="render()">
+    <option value="">All Status</option>
+    <option value="unmarked">Unmarked</option>
+    <option value="marked">Marked</option>
+  </select>
+  <label class="hide-marked-toggle">
+    <input id="hideMarked" type="checkbox" checked onchange="render()">
+    Hide Marked
+  </label>
 </div>
 
 <!-- GRID -->
@@ -33,6 +49,21 @@
   <button class="btn" onclick="downloadCollage()">Download</button>
   <button class="btn" onclick="shareCollage()">Share WhatsApp</button>
 </div>
+</section>
+
+<section id="finalTrayTab" class="tab-section">
+  <div class="final-tray-panel">
+    <h3>Generate Final Tray by Serial Codes</h3>
+    <p>Paste serial numbers separated by comma, space, or new line.</p>
+    <textarea id="serialInput" rows="5" placeholder="Example:
+RING-AB1234
+NECK-XY9876"></textarea>
+    <div class="actions">
+      <button class="btn" onclick="generateFinalTrayFromSerials()">Generate Final Tray + Mark in Excel</button>
+    </div>
+    <div id="serialFeedback" class="feedback"></div>
+  </div>
+</section>
 
 <!-- SPINNER -->
 <div id="spinner" class="spinner hidden">
