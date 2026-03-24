@@ -17,10 +17,9 @@
       display: flex;
       justify-content: center;
       margin-bottom: 20px;
-      gap: 10px;
     }
 
-    select, button {
+    select {
       padding: 10px;
       border-radius: 6px;
       border: 1px solid #ccc;
@@ -69,7 +68,7 @@
     .whatsapp-btn {
       margin-top: 20px;
       display: block;
-      width: 200px;
+      width: 220px;
       margin-left: auto;
       margin-right: auto;
       background: #25D366;
@@ -123,6 +122,20 @@ function initFilter() {
     types.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
+function convertToThumbnail(url) {
+  if (!url) return "";
+
+  // Convert Drive URL to thumbnail format
+  if (url.includes("drive.google.com")) {
+    let idMatch = url.match(/id=([a-zA-Z0-9_-]+)/);
+    if (idMatch) {
+      return "https://drive.google.com/thumbnail?id=" + idMatch[1];
+    }
+  }
+
+  return url;
+}
+
 function render() {
   let filterValue = document.getElementById("filter").value;
 
@@ -133,9 +146,11 @@ function render() {
   filtered.forEach(item => {
     let isSelected = selected.includes(item["Serial No"]);
 
+    let imgUrl = convertToThumbnail(item.URL);
+
     html += `
       <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item["Serial No"]}")'>
-        <img src="${item.URL}">
+        <img src="${imgUrl}">
         <p>${item["Serial No"]}</p>
         <small>${item["Type"]}</small>
       </div>
@@ -161,7 +176,8 @@ function renderSelected() {
 
   data.filter(d => selected.includes(d["Serial No"]))
       .forEach(item => {
-        html += `<img src="${item.URL}" title="${item["Serial No"]}">`;
+        let imgUrl = convertToThumbnail(item.URL);
+        html += `<img src="${imgUrl}" title="${item["Serial No"]}">`;
       });
 
   area.innerHTML = html;
