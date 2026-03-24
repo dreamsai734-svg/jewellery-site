@@ -95,6 +95,9 @@ async function generateCollage() {
       collageBlob = await buildCollageBlob(selectedItems);
     }
 
+    // Normalize final output from either path to reduce extra margins.
+    collageBlob = await trimWhitespaceBlob(collageBlob);
+
     lastBlob = collageBlob;
 
     if (lastCollageUrl) {
@@ -376,10 +379,10 @@ async function buildCollageBlob(items) {
   const count = items.length;
   const columns = count <= 3 ? count : 3;
   const rows = Math.ceil(count / 3);
-  const cellSize = 420;
-  const labelHeight = 56;
-  const gap = 12;
-  const padding = 20;
+  const cellSize = 320;
+  const labelHeight = 44;
+  const gap = 8;
+  const padding = 8;
 
   const canvas = document.createElement("canvas");
   canvas.width = padding * 2 + columns * cellSize + (columns - 1) * gap;
@@ -392,9 +395,11 @@ async function buildCollageBlob(items) {
   const images = await Promise.all(
     items.map(async item => {
       try {
+        const loadedImage = await loadImageWithFallback(item);
+        const preparedImage = trimWhiteEdgesFromImageSource(loadedImage);
         return {
           id: item["Serial No"],
-          image: await loadImageWithFallback(item)
+          image: preparedImage
         };
       } catch (err) {
         console.warn(err);
@@ -455,4 +460,66 @@ async function buildCollageBlob(items) {
       resolve(blob);
     }, "image/png", 0.95);
   });
+}
+
+function trimWhiteEdgesFromImageSource(sourceImage) {
+  try {
+    const width = sourceImage.naturalWidth || sourceImage.width;
+    const height = sourceImage.naturalHeight || sourceImage.height;
+    if (!width || !height) {
+      return sourceImage;
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(sourceImage, 0, 0, width, height);
+
+    const pixels = ctx.getImageData(0, 0, width, height).data;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const r = pixels[i];
+        const g = pixels[i + 1];
+        const b = pixels[i + 2];
+        const a = pixels[i + 3];
+
+        // Consider near-white and transparent pixels as background.
+        const isBackground = a < 8 || (r > 247 && g > 247 && b > 247);
+        if (!isBackground) {
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+
+    if (maxX < minX || maxY < minY) {
+      return sourceImage;
+    }
+
+    const cropWidth = maxX - minX + 1;
+    const cropHeight = maxY - minY + 1;
+
+    // Keep original if trimming would not significantly reduce whitespace.
+    if (cropWidth > width * 0.95 && cropHeight > height * 0.95) {
+      return sourceImage;
+    }
+
+    const out = document.createElement("canvas");
+    out.width = cropWidth;
+    out.height = cropHeight;
+    const outCtx = out.getContext("2d");
+    outCtx.drawImage(canvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+    return out;
+  } catch (err) {
+    return sourceImage;
+  }
 }
