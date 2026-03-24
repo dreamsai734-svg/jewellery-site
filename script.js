@@ -234,7 +234,7 @@ async function generateFinalTrayFromSerials() {
       URL.revokeObjectURL(lastCollageUrl);
     }
 
-    lastCollageUrl = URL.createObjectURL(blob);
+    lastCollageUrl = URL.createObjectURL(lastBlob);
     const preview = document.getElementById("collagePreview");
     preview.src = lastCollageUrl;
     preview.style.display = "block";
