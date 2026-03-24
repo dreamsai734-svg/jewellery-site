@@ -3,7 +3,7 @@ let selected = [];
 let lastBlob = null;
 let lastCollageUrl = "";
 
-const API_URL = "https://script.google.com/macros/s/AKfycbz4U-wCpHqaTouOffeKJJerkADaVwvg0WbZ28pjCcAkAYgi4iYYEi8POZRD0HfR5YQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbws6vTxwsrr2rTeJmgTwIo__4bwPcJQlDGNBhqPNQO_NsJkPGwujAuk-bFPEEWVIw/exec";
 
 /* FETCH DATA */
 fetch(API_URL)
@@ -120,11 +120,7 @@ function downloadCollage() {
     return;
   }
 
-  const url = URL.createObjectURL(lastBlob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "collage.png";
-  a.click();
+  triggerBlobDownload(lastBlob, "collage.png");
 }
 
 /* ✅ SHARE (FIXED - NO BLOBS SENT AS TEXT) */
@@ -145,13 +141,30 @@ async function shareCollage() {
       });
     } catch (err) {
       console.log(err);
-      alert("Sharing cancelled");
+      if (err && err.name !== "AbortError") {
+        alert("Sharing failed on this device. Please download and attach manually in WhatsApp.");
+      }
     }
   } else {
-    const whatsappText = encodeURIComponent("My jewellery collage is ready. Please check this file.");
-    window.open(`https://wa.me/?text=${whatsappText}`, "_blank");
-    alert("Direct image sharing is not supported on this browser. The collage is ready, so download it and attach in WhatsApp.");
+    triggerBlobDownload(lastBlob, "collage.png");
+    const whatsappText = encodeURIComponent("Collage downloaded as collage.png. Please attach that file here.");
+    window.open(`https://web.whatsapp.com/send?text=${whatsappText}`, "_blank");
+    alert("This browser cannot directly share files to WhatsApp. The collage has been downloaded as collage.png. Attach it in WhatsApp.");
   }
+}
+
+function triggerBlobDownload(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+
+  setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 /* SPINNER */
