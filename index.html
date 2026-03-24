@@ -4,42 +4,317 @@
   <title>Jewellery Selector</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <link rel="stylesheet" href="style.css">
-
   <!-- html2canvas -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+      background: #f7f7f7;
+    }
+
+    h2 { text-align: center; }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 10px;
+    }
+
+    .card {
+      background: white;
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      text-align: center;
+    }
+
+    .card.selected {
+      border: 3px solid green;
+    }
+
+    img {
+      width: 100%;
+      border-radius: 6px;
+    }
+
+    #selectedArea {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .collage-item {
+      position: relative;
+    }
+
+    .collage-item img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+    }
+
+    .label {
+      position: absolute;
+      bottom: 0;
+      width: 100%;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .actions {
+      margin-top: 15px;
+      text-align: center;
+    }
+
+    button {
+      padding: 10px 14px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+      background: #25D366;
+      color: white;
+      cursor: pointer;
+    }
+
+    #spinner {
+      position: fixed;
+      top:0; left:0;
+      width:100%; height:100%;
+      background: rgba(0,0,0,0.6);
+      color:white;
+      display:none;
+      justify-content:center;
+      align-items:center;
+      flex-direction:column;
+    }
+  </style>
 </head>
 
 <body>
 
 <h2>Jewellery Selector</h2>
 
-<div class="controls">
+<div style="text-align:center;">
   <select id="filter" onchange="render()"></select>
 </div>
 
 <div class="grid" id="grid"></div>
 
-<h3 style="text-align:center;">Selected Preview</h3>
+<h3 style="text-align:center;">Preview</h3>
 
 <div id="collageContainer">
   <div id="selectedArea"></div>
 </div>
 
-<!-- Actions -->
 <div class="actions">
-  <button class="btn" onclick="generateCollage()">Generate Collage</button>
-  <button class="btn" onclick="downloadCollage()">Download</button>
-  <button class="btn" onclick="shareCollage()">Share on WhatsApp</button>
+  <button onclick="generateCollage()">Generate</button>
+  <button onclick="downloadCollage()">Download</button>
+  <button onclick="shareCollage()">WhatsApp</button>
 </div>
 
-<!-- Spinner -->
-<div id="spinner" class="spinner hidden">
-  <div class="loader"></div>
-  <p>Generating collage...</p>
+<div id="spinner">
+  <h3>Generating collage...</h3>
 </div>
 
-<script src="script.js"></script>
+<!-- Firebase -->
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBu1O3g9yrQoQmL9z_elLAfcn_5m-x0X5s",
+  authDomain: "jewellery-collector-d0e05.firebaseapp.com",
+  projectId: "jewellery-collector-d0e05",
+  storageBucket: "jewellery-collector-d0e05.firebasestorage.app",
+  messagingSenderId: "675500587076",
+  appId: "1:675500587076:web:4e145418d9408c21c9e411"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+window.db = db;
+window.getDocs = getDocs;
+window.collection = collection;
+
+</script>
+
+<script>
+let data = [];
+let selected = [];
+let lastCanvas = null;
+
+/* ================= FIRESTORE LOAD ================= */
+
+async function loadData() {
+  console.log("Loading Firestore data...");
+
+  const snapshot = await getDocs(collection(window.db, "jewellery"));
+
+  let result = [];
+
+  snapshot.forEach(doc => {
+    result.push(doc.data());
+  });
+
+  console.log("Data loaded:", result);
+  return result;
+}
+
+/* ================= INIT ================= */
+
+loadData().then(json => {
+  data = json;
+  initFilter();
+  render();
+});
+
+/* ================= FILTER ================= */
+
+function initFilter() {
+  let types = [...new Set(data.map(d => d.type))];
+  let filter = document.getElementById("filter");
+
+  filter.innerHTML = '<option value="">All</option>' +
+    types.map(t => `<option value="${t}">${t}</option>`).join("");
+}
+
+/* ================= RENDER GRID ================= */
+
+function render() {
+  let filterValue = document.getElementById("filter").value;
+
+  let filtered = data.filter(d => !filterValue || d.type === filterValue);
+
+  let html = "";
+
+  filtered.forEach(item => {
+    let isSelected = selected.includes(item.serialNo);
+
+    html += `
+      <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item.serialNo}")'>
+        <img src="${item.imageUrl}">
+        <p>${item.serialNo}</p>
+        <small>${item.type}</small>
+      </div>
+    `;
+  });
+
+  document.getElementById("grid").innerHTML = html;
+  renderSelected();
+}
+
+/* ================= SELECT ================= */
+
+function toggle(id) {
+  if (selected.includes(id)) {
+    selected = selected.filter(x => x !== id);
+  } else {
+    if (selected.length >= 9) {
+      alert("Max 9 allowed");
+      return;
+    }
+    selected.push(id);
+  }
+  render();
+}
+
+/* ================= PREVIEW ================= */
+
+function renderSelected() {
+  let area = document.getElementById("selectedArea");
+
+  area.innerHTML = data
+    .filter(d => selected.includes(d.serialNo))
+    .map(item => `
+      <div class="collage-item">
+        <img src="${item.imageUrl}">
+        <div class="label">${item.serialNo}</div>
+      </div>
+    `).join("");
+}
+
+/* ================= COLLAGE ================= */
+
+async function generateCollage() {
+  if (selected.length === 0) {
+    alert("Select items first");
+    return;
+  }
+
+  document.getElementById("spinner").style.display = "flex";
+
+  const container = document.getElementById("collageContainer");
+
+  const images = container.querySelectorAll("img");
+
+  await Promise.all([...images].map(img => {
+    if (img.complete) return Promise.resolve();
+    return new Promise(resolve => {
+      img.onload = img.onerror = resolve;
+    });
+  }));
+
+  const canvas = await html2canvas(container, {
+    scale: 2,
+    backgroundColor: "#ffffff"
+  });
+
+  lastCanvas = canvas;
+
+  document.getElementById("spinner").style.display = "none";
+}
+
+/* ================= DOWNLOAD ================= */
+
+function downloadCollage() {
+  if (!lastCanvas) {
+    alert("Generate first");
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.download = "collage.png";
+  link.href = lastCanvas.toDataURL();
+  link.click();
+}
+
+/* ================= SHARE ================= */
+
+async function shareCollage() {
+  if (!lastCanvas) {
+    alert("Generate first");
+    return;
+  }
+
+  lastCanvas.toBlob(async blob => {
+    const file = new File([blob], "collage.png", { type: "image/png" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] });
+    } else {
+      fallbackShare();
+    }
+  });
+}
+
+function fallbackShare() {
+  let text = "Jewellery:\n\n";
+
+  data.filter(d => selected.includes(d.serialNo))
+      .forEach(d => {
+        text += d.serialNo + "\n";
+      });
+
+  window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+}
+</script>
 
 </body>
 </html>
