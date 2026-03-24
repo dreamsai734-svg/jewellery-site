@@ -187,7 +187,66 @@ async function buildCollageBlobOnServer(selectedIds) {
     throw new Error(payload.error || "Invalid server collage response");
   }
 
-  return base64ToBlob(payload.base64, payload.mimeType || "image/png");
+  if (payload.debug && payload.debug.insertedImages === 0) {
+    throw new Error("Server could not insert any images");
+  }
+
+  if (payload.debug && payload.debug.exportedBytes && payload.debug.exportedBytes < 1500) {
+    throw new Error("Server returned suspiciously small collage image");
+  }
+
+  const blob = base64ToBlob(payload.base64, payload.mimeType || "image/png");
+  const isBlank = await isMostlyWhiteBlob(blob);
+  if (isBlank) {
+    throw new Error("Server returned blank/white collage image");
+  }
+
+  return blob;
+}
+
+async function isMostlyWhiteBlob(blob) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        const width = Math.max(1, Math.min(400, img.width));
+        const height = Math.max(1, Math.min(400, img.height));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const pixels = ctx.getImageData(0, 0, width, height).data;
+        let whiteCount = 0;
+        const total = width * height;
+
+        for (let i = 0; i < pixels.length; i += 4) {
+          const r = pixels[i];
+          const g = pixels[i + 1];
+          const b = pixels[i + 2];
+          if (r > 245 && g > 245 && b > 245) {
+            whiteCount++;
+          }
+        }
+
+        URL.revokeObjectURL(url);
+        resolve(whiteCount / total > 0.99);
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        resolve(false);
+      }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(false);
+    };
+
+    img.src = url;
+  });
 }
 
 function base64ToBlob(base64, mimeType) {
