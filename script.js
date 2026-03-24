@@ -1,5 +1,6 @@
 let data = [];
 let selected = [];
+let lastCanvas = null;
 
 const API_URL = "https://script.google.com/macros/s/AKfycbxurQyyCGIRT2nTBTEZJMBi3lCuAHH1j3wC3vOjk7d3gAqqTiFVIgMyw37pvt6E4Q/exec";
 
@@ -28,7 +29,6 @@ function convertToThumbnail(url) {
       return "https://drive.google.com/uc?export=view&id=" + match[0];
     }
   }
-
   return url;
 }
 
@@ -46,7 +46,6 @@ function render() {
       <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item["Serial No"]}")'>
         <img src="${imgUrl}">
         <p>${item["Serial No"]}</p>
-        <small>${item["Type"]}</small>
       </div>
     `;
   });
@@ -75,52 +74,95 @@ function renderSelected() {
     .filter(d => selected.includes(d["Serial No"]))
     .map(item => {
       let imgUrl = convertToThumbnail(item.URL);
-      return `<img src="${imgUrl}">`;
+      return `
+        <div class="collage-item">
+          <img src="${imgUrl}">
+          <div class="label">${item["Serial No"]}</div>
+        </div>
+      `;
     }).join("");
 
   area.innerHTML = html;
 }
 
-async function shareCollage() {
-  console.log("Generating collage using html2canvas...");
+/* =========================
+   COLLAGE GENERATION
+========================= */
+
+async function generateCollage() {
+  if (selected.length === 0) {
+    alert("Select items first");
+    return;
+  }
+
+  showSpinner(true);
 
   const container = document.getElementById("collageContainer");
 
   try {
     const canvas = await html2canvas(container, {
       useCORS: false,
-      allowTaint: true
+      allowTaint: true,
+      scale: 2 // better quality
     });
 
-    canvas.toBlob(async function(blob) {
-      if (!blob) {
-        alert("Failed to generate image");
-        return;
-      }
-
-      const file = new File([blob], "collage.png", { type: "image/png" });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            files: [file],
-            title: "Jewellery Selection",
-            text: "Sharing jewellery collage"
-          });
-        } catch (err) {
-          console.error("Share failed:", err);
-          fallbackTextShare();
-        }
-      } else {
-        fallbackTextShare();
-      }
-    });
+    lastCanvas = canvas;
 
   } catch (err) {
-    console.error("html2canvas error:", err);
-    fallbackTextShare();
+    console.error(err);
+    alert("Error generating collage");
   }
+
+  showSpinner(false);
 }
+
+/* =========================
+   DOWNLOAD
+========================= */
+
+function downloadCollage() {
+  if (!lastCanvas) {
+    alert("Generate collage first");
+    return;
+  }
+
+  const link = document.createElement("a");
+  link.download = "collage.png";
+  link.href = lastCanvas.toDataURL("image/png");
+  link.click();
+}
+
+/* =========================
+   SHARE
+========================= */
+
+async function shareCollage() {
+  if (!lastCanvas) {
+    alert("Generate collage first");
+    return;
+  }
+
+  lastCanvas.toBlob(async function(blob) {
+    const file = new File([blob], "collage.png", { type: "image/png" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: "Jewellery Collage"
+        });
+      } catch (err) {
+        fallbackTextShare();
+      }
+    } else {
+      fallbackTextShare();
+    }
+  });
+}
+
+/* =========================
+   FALLBACK
+========================= */
 
 function fallbackTextShare() {
   let text = "Selected Jewellery:\n\n";
@@ -131,4 +173,12 @@ function fallbackTextShare() {
       });
 
   window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+}
+
+/* =========================
+   SPINNER
+========================= */
+
+function showSpinner(show) {
+  document.getElementById("spinner").classList.toggle("hidden", !show);
 }
