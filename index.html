@@ -1,33 +1,115 @@
-
 <!DOCTYPE html>
 <html>
 <head>
-  <title>DreamsAI Jewellery</title>
+  <title>Jewellery Selector</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <style>
-    body { font-family: Arial; margin: 20px; background:#f8f8f8; }
-    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:20px; }
-    .card { background:white; padding:10px; border-radius:10px; }
-    img { width:100%; border-radius:10px; }
-    button { background:#c9a34e; color:white; border:none; padding:10px; width:100%; border-radius:5px; }
+    body { font-family: Arial; padding: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 15px; }
+    .card { border:1px solid #ddd; padding:10px; border-radius:10px; cursor:pointer; }
+    img { width:100%; border-radius:8px; }
+    .selected { border:3px solid green; }
+
+    #selectedArea img {
+      width: 80px;
+      margin: 5px;
+      border-radius: 6px;
+      border: 2px solid #ccc;
+    }
   </style>
 </head>
+
 <body>
 
-<h1>DreamsAI Jewellery</h1>
+<h2>Jewellery Selector</h2>
 
-<div class="grid">
-  <div class="card">
-    <img src="https://via.placeholder.com/300">
-    <h3>Ring 1</h3>
-    <button onclick="order('Ring 1')">Order on WhatsApp</button>
-  </div>
-</div>
+<select id="filter" onchange="render()"></select>
+
+<div class="grid" id="grid"></div>
+
+<h3>Selected Items (Collage Preview)</h3>
+<div id="selectedArea"></div>
+
+<button onclick="sendWhatsApp()">Send to WhatsApp</button>
 
 <script>
-function order(name){
-  let msg = "Hi, I want this jewellery: " + name;
-  window.open("https://wa.me/91XXXXXXXXXX?text=" + encodeURIComponent(msg));
+let data = [];
+let selected = [];
+
+fetch("YOUR_SHEET_API_URL")
+.then(res => res.json())
+.then(json => {
+  data = json;
+  initFilter();
+  render();
+});
+
+function initFilter(){
+  let types = [...new Set(data.map(d => d.Type))];
+  let filter = document.getElementById("filter");
+
+  filter.innerHTML = '<option value="">All</option>' +
+    types.map(t => `<option>${t}</option>`).join("");
+}
+
+function render(){
+  let f = document.getElementById("filter").value;
+
+  let filtered = data.filter(d => !f || d.Type === f);
+
+  let html = "";
+
+  filtered.forEach(item => {
+    let isSelected = selected.includes(item["Serial No"]);
+
+    html += `
+      <div class="card ${isSelected ? 'selected' : ''}" onclick='toggleSelect(${JSON.stringify(item)})'>
+        <img src="${item.URL}">
+        <p>${item["Serial No"]}</p>
+      </div>
+    `;
+  });
+
+  document.getElementById("grid").innerHTML = html;
+  renderSelected();
+}
+
+function toggleSelect(item){
+  let id = item["Serial No"];
+
+  if(selected.includes(id)){
+    selected = selected.filter(x => x !== id);
+  } else {
+    selected.push(id);
+  }
+
+  render();
+}
+
+function renderSelected(){
+  let area = document.getElementById("selectedArea");
+
+  let html = "";
+
+  data.filter(d => selected.includes(d["Serial No"]))
+      .forEach(item => {
+        html += `<img src="${item.URL}" title="${item["Serial No"]}">`;
+      });
+
+  area.innerHTML = html;
+}
+
+function sendWhatsApp(){
+  let text = "Selected Jewellery:\n\n";
+
+  data.filter(d => selected.includes(d["Serial No"]))
+      .forEach(item => {
+        text += item["Serial No"] + "\n" + item.URL + "\n\n";
+      });
+
+  let url = "https://wa.me/?text=" + encodeURIComponent(text);
+  window.open(url);
 }
 </script>
 
