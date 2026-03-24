@@ -1,159 +1,35 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Jewellery PDF Generator</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <style>
-    body {
-      font-family: Arial;
-      padding: 20px;
-      background: #f7f7f7;
-    }
-
-    h2 { text-align: center; }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 10px;
-    }
-
-    .card {
-      background: white;
-      padding: 8px;
-      border-radius: 8px;
-      cursor: pointer;
-      text-align: center;
-    }
-
-    .card.selected {
-      border: 3px solid green;
-    }
-
-    img {
-      width: 100%;
-      border-radius: 6px;
-    }
-
-    .actions {
-      text-align: center;
-      margin-top: 20px;
-    }
-
-    button {
-      padding: 10px 14px;
-      margin: 5px;
-      border: none;
-      border-radius: 6px;
-      background: #25D366;
-      color: white;
-      cursor: pointer;
-    }
-
-    #status {
-      text-align: center;
-      margin-top: 10px;
-      color: #333;
-    }
-  </style>
+  <title>Jewellery Collage</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<h2>Jewellery Selector (PDF)</h2>
+<h2>Jewellery Selector</h2>
+
+<div class="controls">
+  <select id="filter" onchange="render()"></select>
+</div>
 
 <div class="grid" id="grid"></div>
 
-<div class="actions">
-  <button onclick="generatePDF()">Download PDF</button>
+<div id="collageContainer">
+  <div id="selectedArea"></div>
 </div>
 
-<div id="status"></div>
+<div class="actions">
+  <button class="btn" onclick="generateCollage()">Generate Collage</button>
+  <button class="btn" onclick="downloadCollage()">Download</button>
+  <button class="btn" onclick="shareCollage()">Share WhatsApp</button>
+</div>
 
-<script>
-let data = [];
-let selected = [];
+<div id="spinner" class="spinner hidden">
+  <div class="loader"></div>
+  <p>Generating...</p>
+</div>
 
-/* ✅ YOUR API */
-const API_URL = "https://script.google.com/macros/s/AKfycbzUKta_GSC3R6TX_eC10iNd3y7Ze7d9fp22P3EMKdXzmImuzCvGG_nRRd9AmWgJE6U/exec";
-
-/* FETCH DATA */
-fetch(API_URL)
-.then(res => res.json())
-.then(json => {
-  data = json;
-  render();
-})
-.catch(err => console.error("API error:", err));
-
-/* RENDER GRID */
-function render() {
-  let html = "";
-
-  data.forEach(item => {
-    let isSelected = selected.includes(item["Serial No"]);
-
-    html += `
-      <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item["Serial No"]}")'>
-        <img src="${item.URL}">
-        <p>${item["Serial No"]}</p>
-      </div>
-    `;
-  });
-
-  document.getElementById("grid").innerHTML = html;
-}
-
-/* SELECT */
-function toggle(id) {
-  if (selected.includes(id)) {
-    selected = selected.filter(x => x !== id);
-  } else {
-    if (selected.length >= 20) {
-      alert("Max 20 items allowed");
-      return;
-    }
-    selected.push(id);
-  }
-  render();
-}
-
-/* GENERATE PDF */
-async function generatePDF() {
-  if (selected.length === 0) {
-    alert("Select items first");
-    return;
-  }
-
-  document.getElementById("status").innerText = "Generating PDF...";
-
-  try {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        selected: selected
-      })
-    });
-
-    const blob = await response.blob();
-
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "jewellery.pdf";
-    a.click();
-
-    window.URL.revokeObjectURL(url);
-
-    document.getElementById("status").innerText = "PDF downloaded ✅";
-
-  } catch (err) {
-    console.error(err);
-    document.getElementById("status").innerText = "Error generating PDF ❌";
-  }
-}
-</script>
-
+<script src="script.js"></script>
 </body>
 </html>
