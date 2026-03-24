@@ -3,6 +3,7 @@
 <head>
   <title>Jewellery Collage</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -10,27 +11,37 @@
 
 <h2>Jewellery Selector</h2>
 
+<!-- FILTER -->
 <div class="controls">
   <select id="filter" onchange="render()"></select>
 </div>
 
+<!-- GRID -->
 <div class="grid" id="grid"></div>
 
+<!-- COLLAGE PREVIEW -->
 <div id="collageContainer">
   <div id="selectedArea"></div>
+
+  <!-- ✅ PREVIEW IMAGE (IMPORTANT) -->
+  <img id="collagePreview" style="max-width:100%; margin-top:20px; display:none;" />
 </div>
 
+<!-- ACTION BUTTONS -->
 <div class="actions">
   <button class="btn" onclick="generateCollage()">Generate Collage</button>
   <button class="btn" onclick="downloadCollage()">Download</button>
   <button class="btn" onclick="shareCollage()">Share WhatsApp</button>
 </div>
 
+<!-- SPINNER -->
 <div id="spinner" class="spinner hidden">
   <div class="loader"></div>
   <p>Generating...</p>
 </div>
 
+<!-- SCRIPT -->
 <script src="script.js"></script>
+
 </body>
 </html>
