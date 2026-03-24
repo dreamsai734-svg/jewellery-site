@@ -2,6 +2,7 @@ let data = [];
 let selected = [];
 let lastBlob = null;
 let lastCollageUrl = "";
+let collageBlobs = [];
 
 const API_URL = "https://script.google.com/macros/s/AKfycbws6vTxwsrr2rTeJmgTwIo__4bwPcJQlDGNBhqPNQO_NsJkPGwujAuk-bFPEEWVIw/exec";
 
@@ -51,10 +52,6 @@ function toggle(id) {
   if (selected.includes(id)) {
     selected = selected.filter(x => x !== id);
   } else {
-    if (selected.length >= 9) {
-      alert("Maximum 9 items allowed");
-      return;
-    }
     selected.push(id);
   }
   render();
@@ -85,30 +82,44 @@ async function generateCollage() {
   showSpinner(true);
 
   try {
-    let collageBlob;
+    const selectedChunks = chunkArray(selected, 9);
+    const generatedBlobs = [];
 
-    try {
-      collageBlob = await buildCollageBlobOnServer(selected);
-    } catch (serverErr) {
-      console.warn("Server collage failed, using browser fallback", serverErr);
-      const selectedItems = data.filter(d => selected.includes(d["Serial No"]));
-      collageBlob = await buildCollageBlob(selectedItems);
+    for (const chunkIds of selectedChunks) {
+      let collageBlob;
+
+      try {
+        collageBlob = await buildCollageBlobOnServer(chunkIds);
+      } catch (serverErr) {
+        console.warn("Server collage failed for chunk, using browser fallback", serverErr);
+        const selectedItems = data.filter(d => chunkIds.includes(d["Serial No"]));
+        collageBlob = await buildCollageBlob(selectedItems);
+      }
+
+      collageBlob = await trimWhitespaceBlob(collageBlob);
+      generatedBlobs.push(collageBlob);
     }
 
-    // Normalize final output from either path to reduce extra margins.
-    collageBlob = await trimWhitespaceBlob(collageBlob);
+    if (generatedBlobs.length === 0) {
+      throw new Error("Unable to generate collage");
+    }
 
-    lastBlob = collageBlob;
+    collageBlobs = generatedBlobs;
+    lastBlob = collageBlobs[0];
 
     if (lastCollageUrl) {
       URL.revokeObjectURL(lastCollageUrl);
     }
 
-    lastCollageUrl = URL.createObjectURL(collageBlob);
+    lastCollageUrl = URL.createObjectURL(lastBlob);
     const preview = document.getElementById("collagePreview");
     preview.src = lastCollageUrl;
     preview.style.display = "block";
     document.getElementById("selectedArea").style.display = "none";
+
+    if (collageBlobs.length > 1) {
+      alert(`${collageBlobs.length} collages generated. Download will save all files.`);
+    }
 
   } catch (err) {
     console.error(err);
@@ -120,27 +131,36 @@ async function generateCollage() {
 
 /* DOWNLOAD */
 function downloadCollage() {
-  if (!lastBlob) {
+  if (!collageBlobs.length) {
     alert("Generate collage first");
     return;
   }
 
-  triggerBlobDownload(lastBlob, "collage.png");
+  if (collageBlobs.length === 1) {
+    triggerBlobDownload(collageBlobs[0], "collage-1.png");
+    return;
+  }
+
+  collageBlobs.forEach((blob, index) => {
+    setTimeout(() => {
+      triggerBlobDownload(blob, `collage-${index + 1}.png`);
+    }, index * 300);
+  });
 }
 
 /* ✅ SHARE (FIXED - NO BLOBS SENT AS TEXT) */
 async function shareCollage() {
-  if (!lastBlob) {
+  if (!collageBlobs.length) {
     alert("Generate collage first");
     return;
   }
 
-  const file = new File([lastBlob], "collage.png", { type: "image/png" });
+  const files = collageBlobs.map((blob, index) => new File([blob], `collage-${index + 1}.png`, { type: "image/png" }));
 
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (navigator.canShare && navigator.canShare({ files })) {
     try {
       await navigator.share({
-        files: [file],
+        files,
         title: "Jewellery Collage",
         text: "Jewellery collage"
       });
@@ -151,10 +171,15 @@ async function shareCollage() {
       }
     }
   } else {
-    triggerBlobDownload(lastBlob, "collage.png");
-    const whatsappText = encodeURIComponent("Collage downloaded as collage.png. Please attach that file here.");
+    collageBlobs.forEach((blob, index) => {
+      setTimeout(() => {
+        triggerBlobDownload(blob, `collage-${index + 1}.png`);
+      }, index * 300);
+    });
+
+    const whatsappText = encodeURIComponent("Collages downloaded. Please attach collage files here.");
     window.open(`https://web.whatsapp.com/send?text=${whatsappText}`, "_blank");
-    alert("This browser cannot directly share files to WhatsApp. The collage has been downloaded as collage.png. Attach it in WhatsApp.");
+    alert("This browser cannot directly share files to WhatsApp. Collage files are downloaded. Attach them in WhatsApp.");
   }
 }
 
@@ -522,4 +547,12 @@ function trimWhiteEdgesFromImageSource(sourceImage) {
   } catch (err) {
     return sourceImage;
   }
+}
+
+function chunkArray(arr, size) {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
 }
