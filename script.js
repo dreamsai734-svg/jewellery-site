@@ -2,7 +2,7 @@ let data = [];
 let selected = [];
 let lastBlob = null;
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwWOrrqqFh97DyZjKsG9H3yKAp_uaud2VOBHu3ZPcVO5fXnOIpBLUbV19mrbcPCOGA/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwAQooWtH0hATJOg8tM3gnBCH1GOTBVwiTBRit8Sz9_WuWOrhMTf6aqJvMtnjFMoaM/exec";
 
 /* FETCH DATA */
 fetch(API_URL)
@@ -25,6 +25,7 @@ function initFilter() {
 /* RENDER GRID */
 function render() {
   let filterValue = document.getElementById("filter").value;
+
   let filtered = data.filter(d => !filterValue || d["Type"] === filterValue);
 
   let html = "";
@@ -111,17 +112,23 @@ function downloadCollage() {
   a.click();
 }
 
-/* SHARE */
-function shareCollage() {
+/* SHARE (MOBILE WHATSAPP) */
+async function shareCollage() {
   if (!lastBlob) {
     alert("Generate collage first");
     return;
   }
 
-  const url = URL.createObjectURL(lastBlob);
-  const text = "Jewellery Collage: " + url;
+  const file = new File([lastBlob], "collage.png", { type: "image/png" });
 
-  window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: "Jewellery Collage"
+    });
+  } else {
+    alert("Sharing not supported on this device.");
+  }
 }
 
 /* SPINNER */
