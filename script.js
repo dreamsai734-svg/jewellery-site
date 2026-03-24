@@ -3,7 +3,7 @@ let selected = [];
 let lastBlob = null;
 let lastCollageUrl = "";
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwdYuxacxqWJdrNH3x1l2Wk5pBCb-pQj5fIs9xE6xSEmUZLWNWUqAMSt07MS7eheLc/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbws6vTxwsrr2rTeJmgTwIo__4bwPcJQlDGNBhqPNQO_NsJkPGwujAuk-bFPEEWVIw/exec";
 
 /* FETCH DATA */
 fetch(API_URL)
