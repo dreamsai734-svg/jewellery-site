@@ -4,21 +4,54 @@ let lastBlob = null;
 let lastCollageUrl = "";
 let collageBlobs = [];
 
-const API_URL = "https://script.google.com/macros/s/AKfycbws6vTxwsrr2rTeJmgTwIo__4bwPcJQlDGNBhqPNQO_NsJkPGwujAuk-bFPEEWVIw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyap78iGEbjbn6lTqO8BD488V2EjEuV6ySVXhCGFTAYcfOCFGtBnyaB7K9MKus33w/exec";
 
 /* FETCH DATA */
-fetch(API_URL)
-.then(res => res.json())
-.then(json => {
+loadData();
+
+async function loadData() {
+  const hideMarkedNode = document.getElementById("hideMarked");
+  if (hideMarkedNode) {
+    hideMarkedNode.checked = true;
+  }
+
+  const res = await fetch(API_URL);
+  const json = await res.json();
   data = Array.isArray(json) ? json : (json.data || []);
+  selected = selected.filter(id => {
+    const item = data.find(d => d["Serial No"] === id);
+    return item && normalizeStatus(item["Status"]) !== "marked";
+  });
   initFilter();
   render();
-});
+}
+
+function normalizeStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value.includes("marked")) {
+    return "marked";
+  }
+  return "unmarked";
+}
+
+function switchTab(tabName) {
+  const browseTab = document.getElementById("browseTab");
+  const finalTrayTab = document.getElementById("finalTrayTab");
+  const browseBtn = document.getElementById("tabBrowseBtn");
+  const finalTrayBtn = document.getElementById("tabFinalTrayBtn");
+
+  const isBrowse = tabName === "browse";
+  browseTab.classList.toggle("active", isBrowse);
+  finalTrayTab.classList.toggle("active", !isBrowse);
+  browseBtn.classList.toggle("active", isBrowse);
+  finalTrayBtn.classList.toggle("active", !isBrowse);
+}
 
 /* FILTER */
 function initFilter() {
-  let types = [...new Set(data.map(d => d["Type"]))];
-  let filter = document.getElementById("filter");
+  let types = [...new Set(data.map(d => d["Type"]).filter(Boolean))];
+  types.sort((a, b) => String(a).localeCompare(String(b)));
+  let filter = document.getElementById("filterType");
 
   filter.innerHTML = '<option value="">All</option>' +
     types.map(t => `<option value="${t}">${t}</option>`).join("");
@@ -26,19 +59,44 @@ function initFilter() {
 
 /* RENDER GRID */
 function render() {
-  let filterValue = document.getElementById("filter").value;
+  let filterType = document.getElementById("filterType").value;
+  let filterStatus = document.getElementById("filterStatus").value;
+  let hideMarked = document.getElementById("hideMarked").checked;
 
-  let filtered = data.filter(d => !filterValue || d["Type"] === filterValue);
+  let filtered = data.filter(d => {
+    const status = normalizeStatus(d["Status"]);
+    const typeMatch = !filterType || d["Type"] === filterType;
+
+    if (!typeMatch) {
+      return false;
+    }
+
+    if (hideMarked && status === "marked") {
+      return false;
+    }
+
+    if (filterStatus === "marked" && status !== "marked") {
+      return false;
+    }
+
+    if (filterStatus === "unmarked" && status === "marked") {
+      return false;
+    }
+
+    return true;
+  });
 
   let html = "";
 
   filtered.forEach(item => {
+    const status = normalizeStatus(item["Status"]);
     let isSelected = selected.includes(item["Serial No"]);
 
     html += `
-      <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item["Serial No"]}")'>
+      <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" onclick='toggle("${item["Serial No"]}")'>
         <img src="${item["DisplayURL"]}">
         <p>${item["Serial No"]}</p>
+        ${status === "marked" ? '<p class="marked-label">Marked</p>' : ''}
       </div>
     `;
   });
@@ -49,6 +107,12 @@ function render() {
 
 /* TOGGLE */
 function toggle(id) {
+  const item = data.find(d => d["Serial No"] === id);
+  if (item && normalizeStatus(item["Status"]) === "marked") {
+    alert("This item is already marked and is not selectable.");
+    return;
+  }
+
   if (selected.includes(id)) {
     selected = selected.filter(x => x !== id);
   } else {
@@ -129,6 +193,70 @@ async function generateCollage() {
   }
 }
 
+async function generateFinalTrayFromSerials() {
+  const serialInput = document.getElementById("serialInput").value || "";
+  const serials = parseSerialInput(serialInput);
+
+  if (!serials.length) {
+    setSerialFeedback("Please enter at least one serial code.", true);
+    return;
+  }
+
+  showSpinner(true);
+  setSerialFeedback("Generating final tray and updating marked status...", false);
+
+  try {
+    const result = await buildFinalTrayAndMarkOnServer(serials);
+
+    if (!result.ok || !result.base64) {
+      throw new Error(result.error || "Unable to generate final tray");
+    }
+
+    const blob = base64ToBlob(result.base64, result.mimeType || "image/png");
+    collageBlobs = [blob];
+    lastBlob = blob;
+
+    if (lastCollageUrl) {
+      URL.revokeObjectURL(lastCollageUrl);
+    }
+
+    lastCollageUrl = URL.createObjectURL(blob);
+    const preview = document.getElementById("collagePreview");
+    preview.src = lastCollageUrl;
+    preview.style.display = "block";
+    document.getElementById("selectedArea").style.display = "none";
+
+    await loadData();
+
+    const missing = result.missingSerials || [];
+    const updatedCount = Number(result.updatedCount || 0);
+    const missingText = missing.length ? ` Missing: ${missing.join(", ")}.` : "";
+    setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}`, false);
+    alert(`Final tray generated. ${updatedCount} items marked in Excel.`);
+  } catch (err) {
+    console.error(err);
+    setSerialFeedback(err.message || "Failed to generate final tray", true);
+    alert("Error generating final tray. Please check serial codes and try again.");
+  } finally {
+    showSpinner(false);
+  }
+}
+
+function parseSerialInput(rawText) {
+  const tokens = String(rawText || "")
+    .split(/[\s,;]+/)
+    .map(t => t.trim())
+    .filter(Boolean);
+
+  return [...new Set(tokens)];
+}
+
+function setSerialFeedback(message, isError) {
+  const node = document.getElementById("serialFeedback");
+  node.textContent = message;
+  node.style.color = isError ? "#b42318" : "#155724";
+}
+
 /* DOWNLOAD */
 function downloadCollage() {
   if (!collageBlobs.length) {
@@ -205,7 +333,7 @@ function showSpinner(show) {
 async function buildCollageBlobOnServer(selectedIds) {
   const response = await fetch(API_URL, {
     method: "POST",
-    body: JSON.stringify({ selected: selectedIds })
+    body: JSON.stringify({ action: "buildCollage", selected: selectedIds })
   });
 
   if (!response.ok) {
@@ -232,6 +360,22 @@ async function buildCollageBlobOnServer(selectedIds) {
   }
 
   return blob;
+}
+
+async function buildFinalTrayAndMarkOnServer(serials) {
+  const response = await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "buildAndMarkFinalTray",
+      serials: serials
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error(`Server returned ${response.status}`);
+  }
+
+  return response.json();
 }
 
 async function isMostlyWhiteBlob(blob) {
