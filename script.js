@@ -4,7 +4,7 @@ let lastBlob = null;
 let lastCollageUrl = "";
 let collageBlobs = [];
 
-const API_URL = "https://script.google.com/macros/s/AKfycbzt3ls5kuyc4gZXYUdJQaxAF-BRwKkfjcoHpPAqKyXyiFvw_u4oMYZK-s9D0Q56Tec/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxR-98U3MLMyvwhaFBF8XavgLMo9L6tnhUkH55fo4JDvgnckxCYBl9s8xIBBfUUO_U/exec";
 
 /* FETCH DATA */
 loadData();
