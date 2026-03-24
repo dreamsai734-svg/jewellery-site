@@ -4,7 +4,7 @@ let lastBlob = null;
 let lastCollageUrl = "";
 let collageBlobs = [];
 
-const API_URL = "https://script.google.com/macros/s/AKfycbyap78iGEbjbn6lTqO8BD488V2EjEuV6ySVXhCGFTAYcfOCFGtBnyaB7K9MKus33w/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbyfmjc2dFzIUnHKImGLKY8u6-d2qYzNJSTnzcXF_9Rfbd18fwic-YWZOghyppocujc/exec";
 
 /* FETCH DATA */
 loadData();
@@ -245,10 +245,18 @@ async function generateFinalTrayFromSerials() {
 function parseSerialInput(rawText) {
   const tokens = String(rawText || "")
     .split(/[\s,;]+/)
-    .map(t => t.trim())
+    .map(t => sanitizeSerialToken(t))
     .filter(Boolean);
 
   return [...new Set(tokens)];
+}
+
+function sanitizeSerialToken(token) {
+  return String(token || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
 }
 
 function setSerialFeedback(message, isError) {
