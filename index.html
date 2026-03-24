@@ -16,10 +16,12 @@
     .controls {
       display: flex;
       justify-content: center;
+      gap: 10px;
       margin-bottom: 20px;
+      flex-wrap: wrap;
     }
 
-    select {
+    select, input {
       padding: 10px;
       border-radius: 6px;
       border: 1px solid #ccc;
@@ -68,7 +70,7 @@
     .whatsapp-btn {
       margin-top: 20px;
       display: block;
-      width: 220px;
+      width: 240px;
       margin-left: auto;
       margin-right: auto;
       background: #25D366;
@@ -89,6 +91,10 @@
 
 <div class="controls">
   <select id="filter" onchange="render()"></select>
+</div>
+
+<div class="controls">
+  <input id="phoneNumber" type="text" placeholder="Enter WhatsApp number (e.g. 91XXXXXXXXXX)" style="width:300px;">
 </div>
 
 <div class="grid" id="grid"></div>
@@ -125,11 +131,10 @@ function initFilter() {
 function convertToThumbnail(url) {
   if (!url) return "";
 
-  // Convert Drive URL to thumbnail format
   if (url.includes("drive.google.com")) {
-    let idMatch = url.match(/id=([a-zA-Z0-9_-]+)/);
-    if (idMatch) {
-      return "https://drive.google.com/thumbnail?id=" + idMatch[1];
+    let match = url.match(/id=([a-zA-Z0-9_-]+)/);
+    if (match) {
+      return "https://drive.google.com/thumbnail?id=" + match[1];
     }
   }
 
@@ -145,7 +150,6 @@ function render() {
 
   filtered.forEach(item => {
     let isSelected = selected.includes(item["Serial No"]);
-
     let imgUrl = convertToThumbnail(item.URL);
 
     html += `
@@ -184,6 +188,13 @@ function renderSelected() {
 }
 
 function sendWhatsApp() {
+  let phone = document.getElementById("phoneNumber").value.trim();
+
+  if (!phone) {
+    alert("Please enter WhatsApp number with country code");
+    return;
+  }
+
   let text = "Selected Jewellery:\n\n";
 
   data.filter(d => selected.includes(d["Serial No"]))
@@ -191,7 +202,8 @@ function sendWhatsApp() {
         text += item["Serial No"] + "\n" + item.URL + "\n\n";
       });
 
-  let url = "https://wa.me/?text=" + encodeURIComponent(text);
+  let url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
+
   window.open(url);
 }
 </script>
