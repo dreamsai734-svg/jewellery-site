@@ -1,9 +1,10 @@
 let data = [];
 let selected = [];
-let lastCanvas = null;
+let lastBlob = null;
 
-const API_URL = "https://script.google.com/macros/s/AKfycbxurQyyCGIRT2nTBTEZJMBi3lCuAHH1j3wC3vOjk7d3gAqqTiFVIgMyw37pvt6E4Q/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwWOrrqqFh97DyZjKsG9H3yKAp_uaud2VOBHu3ZPcVO5fXnOIpBLUbV19mrbcPCOGA/exec";
 
+/* FETCH DATA */
 fetch(API_URL)
 .then(res => res.json())
 .then(json => {
@@ -12,6 +13,7 @@ fetch(API_URL)
   render();
 });
 
+/* FILTER */
 function initFilter() {
   let types = [...new Set(data.map(d => d["Type"]))];
   let filter = document.getElementById("filter");
@@ -20,21 +22,7 @@ function initFilter() {
     types.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
-function convertToThumbnail(url) {
-  if (!url) return "";
-
-  // Extract file ID
-  let match = url.match(/[-\w]{25,}/);
-
-  if (match) {
-    let id = match[0];
-
-    return `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
-  }
-
-  return url;
-}
-
+/* RENDER GRID */
 function render() {
   let filterValue = document.getElementById("filter").value;
   let filtered = data.filter(d => !filterValue || d["Type"] === filterValue);
@@ -43,11 +31,10 @@ function render() {
 
   filtered.forEach(item => {
     let isSelected = selected.includes(item["Serial No"]);
-    let imgUrl = convertToThumbnail(item.URL);
 
     html += `
       <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item["Serial No"]}")'>
-        <img src="${imgUrl}">
+        <img src="${item["DisplayURL"]}">
         <p>${item["Serial No"]}</p>
       </div>
     `;
@@ -57,6 +44,7 @@ function render() {
   renderSelected();
 }
 
+/* TOGGLE */
 function toggle(id) {
   if (selected.includes(id)) {
     selected = selected.filter(x => x !== id);
@@ -70,28 +58,21 @@ function toggle(id) {
   render();
 }
 
+/* COLLAGE PREVIEW */
 function renderSelected() {
   let area = document.getElementById("selectedArea");
 
-  let html = data
+  area.innerHTML = data
     .filter(d => selected.includes(d["Serial No"]))
-    .map(item => {
-      let imgUrl = convertToThumbnail(item.URL);
-      return `
-        <div class="collage-item">
-          <img src="${imgUrl}">
-          <div class="label">${item["Serial No"]}</div>
-        </div>
-      `;
-    }).join("");
-
-  area.innerHTML = html;
+    .map(item => `
+      <div class="collage-item">
+        <img src="${item["DisplayURL"]}">
+        <div class="label">${item["Serial No"]}</div>
+      </div>
+    `).join("");
 }
 
-/* =========================
-   COLLAGE GENERATION
-========================= */
-
+/* GENERATE COLLAGE */
 async function generateCollage() {
   if (selected.length === 0) {
     alert("Select items first");
@@ -100,88 +81,50 @@ async function generateCollage() {
 
   showSpinner(true);
 
-  const container = document.getElementById("collageContainer");
-
   try {
-    const canvas = await html2canvas(container, {
-      useCORS: false,
-      allowTaint: true,
-      scale: 2 // better quality
+    const response = await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({ selected })
     });
 
-    lastCanvas = canvas;
+    const blob = await response.blob();
+    lastBlob = blob;
 
   } catch (err) {
-    console.error(err);
     alert("Error generating collage");
   }
 
   showSpinner(false);
 }
 
-/* =========================
-   DOWNLOAD
-========================= */
-
+/* DOWNLOAD */
 function downloadCollage() {
-  if (!lastCanvas) {
+  if (!lastBlob) {
     alert("Generate collage first");
     return;
   }
 
-  const link = document.createElement("a");
-  link.download = "collage.png";
-  link.href = lastCanvas.toDataURL("image/png");
-  link.click();
+  const url = URL.createObjectURL(lastBlob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "collage.png";
+  a.click();
 }
 
-/* =========================
-   SHARE
-========================= */
-
-async function shareCollage() {
-  if (!lastCanvas) {
+/* SHARE */
+function shareCollage() {
+  if (!lastBlob) {
     alert("Generate collage first");
     return;
   }
 
-  lastCanvas.toBlob(async function(blob) {
-    const file = new File([blob], "collage.png", { type: "image/png" });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: "Jewellery Collage"
-        });
-      } catch (err) {
-        fallbackTextShare();
-      }
-    } else {
-      fallbackTextShare();
-    }
-  });
-}
-
-/* =========================
-   FALLBACK
-========================= */
-
-function fallbackTextShare() {
-  let text = "Selected Jewellery:\n\n";
-
-  data.filter(d => selected.includes(d["Serial No"]))
-      .forEach(item => {
-        text += item["Serial No"] + "\n" + item.URL + "\n\n";
-      });
+  const url = URL.createObjectURL(lastBlob);
+  const text = "Jewellery Collage: " + url;
 
   window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
 }
 
-/* =========================
-   SPINNER
-========================= */
-
+/* SPINNER */
 function showSpinner(show) {
   document.getElementById("spinner").classList.toggle("hidden", !show);
 }
