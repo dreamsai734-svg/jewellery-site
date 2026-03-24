@@ -1,1 +1,35 @@
 
+<!DOCTYPE html>
+<html>
+<head>
+  <title>DreamsAI Jewellery</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: Arial; margin: 20px; background:#f8f8f8; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:20px; }
+    .card { background:white; padding:10px; border-radius:10px; }
+    img { width:100%; border-radius:10px; }
+    button { background:#c9a34e; color:white; border:none; padding:10px; width:100%; border-radius:5px; }
+  </style>
+</head>
+<body>
+
+<h1>DreamsAI Jewellery</h1>
+
+<div class="grid">
+  <div class="card">
+    <img src="https://via.placeholder.com/300">
+    <h3>Ring 1</h3>
+    <button onclick="order('Ring 1')">Order on WhatsApp</button>
+  </div>
+</div>
+
+<script>
+function order(name){
+  let msg = "Hi, I want this jewellery: " + name;
+  window.open("https://wa.me/91XXXXXXXXXX?text=" + encodeURIComponent(msg));
+}
+</script>
+
+</body>
+</html>
