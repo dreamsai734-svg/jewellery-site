@@ -21,7 +21,7 @@
       flex-wrap: wrap;
     }
 
-    select, input {
+    select {
       padding: 10px;
       border-radius: 6px;
       border: 1px solid #ccc;
@@ -67,10 +67,10 @@
       border: 2px solid #ccc;
     }
 
-    .whatsapp-btn {
+    .btn {
       margin-top: 20px;
       display: block;
-      width: 240px;
+      width: 260px;
       margin-left: auto;
       margin-right: auto;
       background: #25D366;
@@ -93,17 +93,13 @@
   <select id="filter" onchange="render()"></select>
 </div>
 
-<div class="controls">
-  <input id="phoneNumber" type="text" placeholder="Enter WhatsApp number (e.g. 91XXXXXXXXXX)" style="width:300px;">
-</div>
-
 <div class="grid" id="grid"></div>
 
 <h3 style="text-align:center;">Selected Preview</h3>
 <div id="selectedArea"></div>
 
-<button class="whatsapp-btn" onclick="sendWhatsApp()">
-  Send to WhatsApp
+<button class="btn" onclick="shareImages()">
+  Share Selected Images on WhatsApp
 </button>
 
 <script>
@@ -187,14 +183,44 @@ function renderSelected() {
   area.innerHTML = html;
 }
 
-function sendWhatsApp() {
-  let phone = document.getElementById("phoneNumber").value.trim();
+async function shareImages() {
+  let selectedItems = data.filter(d => selected.includes(d["Serial No"]));
 
-  if (!phone) {
-    alert("Please enter WhatsApp number with country code");
+  if (selectedItems.length === 0) {
+    alert("No items selected");
     return;
   }
 
+  try {
+    let files = [];
+
+    for (let item of selectedItems) {
+      let imgUrl = convertToThumbnail(item.URL);
+
+      let response = await fetch(imgUrl);
+      let blob = await response.blob();
+
+      let file = new File([blob], item["Serial No"] + ".jpg", { type: blob.type });
+      files.push(file);
+    }
+
+    if (navigator.canShare && navigator.canShare({ files })) {
+      await navigator.share({
+        files: files,
+        title: "Jewellery Selection",
+        text: "Sharing selected jewellery"
+      });
+    } else {
+      fallbackWhatsAppText();
+    }
+
+  } catch (err) {
+    console.log(err);
+    fallbackWhatsAppText();
+  }
+}
+
+function fallbackWhatsAppText() {
   let text = "Selected Jewellery:\n\n";
 
   data.filter(d => selected.includes(d["Serial No"]))
@@ -202,9 +228,7 @@ function sendWhatsApp() {
         text += item["Serial No"] + "\n" + item.URL + "\n\n";
       });
 
-  let url = "https://wa.me/" + phone + "?text=" + encodeURIComponent(text);
-
-  window.open(url);
+  window.open("https://wa.me/?text=" + encodeURIComponent(text));
 }
 </script>
 
