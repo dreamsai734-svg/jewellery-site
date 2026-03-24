@@ -2,7 +2,7 @@ let data = [];
 let selected = [];
 let lastBlob = null;
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwAQooWtH0hATJOg8tM3gnBCH1GOTBVwiTBRit8Sz9_WuWOrhMTf6aqJvMtnjFMoaM/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwdYuxacxqWJdrNH3x1l2Wk5pBCb-pQj5fIs9xE6xSEmUZLWNWUqAMSt07MS7eheLc/exec";
 
 /* FETCH DATA */
 fetch(API_URL)
