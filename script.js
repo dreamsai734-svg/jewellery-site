@@ -3,7 +3,7 @@ let selected = [];
 let lastBlob = null;
 let lastCollageUrl = "";
 
-const API_URL = "https://script.google.com/macros/s/AKfycbws6vTxwsrr2rTeJmgTwIo__4bwPcJQlDGNBhqPNQO_NsJkPGwujAuk-bFPEEWVIw/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwdYuxacxqWJdrNH3x1l2Wk5pBCb-pQj5fIs9xE6xSEmUZLWNWUqAMSt07MS7eheLc/exec";
 
 /* FETCH DATA */
 fetch(API_URL)
@@ -63,6 +63,7 @@ function toggle(id) {
 /* COLLAGE PREVIEW */
 function renderSelected() {
   let area = document.getElementById("selectedArea");
+  area.style.display = "grid";
 
   area.innerHTML = data
     .filter(d => selected.includes(d["Serial No"]))
@@ -104,6 +105,7 @@ async function generateCollage() {
     const preview = document.getElementById("collagePreview");
     preview.src = lastCollageUrl;
     preview.style.display = "block";
+    document.getElementById("selectedArea").style.display = "none";
 
   } catch (err) {
     console.error(err);
@@ -201,7 +203,92 @@ async function buildCollageBlobOnServer(selectedIds) {
     throw new Error("Server returned blank/white collage image");
   }
 
-  return blob;
+  return await trimWhitespaceBlob(blob);
+}
+
+async function trimWhitespaceBlob(blob) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+
+        let minX = canvas.width;
+        let minY = canvas.height;
+        let maxX = -1;
+        let maxY = -1;
+
+        for (let y = 0; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            const i = (y * canvas.width + x) * 4;
+            const r = pixels[i];
+            const g = pixels[i + 1];
+            const b = pixels[i + 2];
+            const a = pixels[i + 3];
+
+            const isBackground = a < 10 || (r > 245 && g > 245 && b > 245);
+            if (!isBackground) {
+              if (x < minX) minX = x;
+              if (y < minY) minY = y;
+              if (x > maxX) maxX = x;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        URL.revokeObjectURL(url);
+
+        if (maxX < minX || maxY < minY) {
+          resolve(blob);
+          return;
+        }
+
+        const padding = 12;
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(canvas.width - 1, maxX + padding);
+        maxY = Math.min(canvas.height - 1, maxY + padding);
+
+        const width = maxX - minX + 1;
+        const height = maxY - minY + 1;
+
+        // Keep original if crop does not meaningfully reduce extra whitespace.
+        if (width > canvas.width * 0.95 && height > canvas.height * 0.95) {
+          resolve(blob);
+          return;
+        }
+
+        const cropCanvas = document.createElement("canvas");
+        cropCanvas.width = width;
+        cropCanvas.height = height;
+        const cropCtx = cropCanvas.getContext("2d");
+        cropCtx.drawImage(canvas, minX, minY, width, height, 0, 0, width, height);
+
+        cropCanvas.toBlob((croppedBlob) => {
+          resolve(croppedBlob || blob);
+        }, "image/png", 0.95);
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        resolve(blob);
+      }
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve(blob);
+    };
+
+    img.src = url;
+  });
 }
 
 async function isMostlyWhiteBlob(blob) {
