@@ -206,15 +206,29 @@ async function generateFinalTrayFromSerials() {
   setSerialFeedback("Generating final tray and updating marked status...", false);
 
   try {
-    const result = await buildFinalTrayAndMarkOnServer(serials);
+    const serialChunks = chunkArray(serials, 9);
+    const generatedBlobs = [];
+    const allMissing = new Set();
+    let updatedCount = 0;
 
-    if (!result.ok || !result.base64) {
-      throw new Error(result.error || "Unable to generate final tray");
+    for (const serialChunk of serialChunks) {
+      const result = await buildFinalTrayAndMarkOnServer(serialChunk);
+
+      if (!result.ok || !result.base64) {
+        throw new Error(result.error || "Unable to generate final tray");
+      }
+
+      generatedBlobs.push(base64ToBlob(result.base64, result.mimeType || "image/png"));
+      updatedCount += Number(result.updatedCount || 0);
+      (result.missingSerials || []).forEach(s => allMissing.add(String(s)));
     }
 
-    const blob = base64ToBlob(result.base64, result.mimeType || "image/png");
-    collageBlobs = [blob];
-    lastBlob = blob;
+    if (!generatedBlobs.length) {
+      throw new Error("Unable to generate final tray");
+    }
+
+    collageBlobs = generatedBlobs;
+    lastBlob = collageBlobs[0];
 
     if (lastCollageUrl) {
       URL.revokeObjectURL(lastCollageUrl);
@@ -228,11 +242,14 @@ async function generateFinalTrayFromSerials() {
 
     await loadData();
 
-    const missing = result.missingSerials || [];
-    const updatedCount = Number(result.updatedCount || 0);
+    const missing = [...allMissing];
     const missingText = missing.length ? ` Missing: ${missing.join(", ")}.` : "";
-    setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}`, false);
-    alert(`Final tray generated. ${updatedCount} items marked in Excel.`);
+    const collageText = collageBlobs.length > 1
+      ? ` ${collageBlobs.length} collage files generated.`
+      : "";
+
+    setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${collageText}`, false);
+    alert(`Final tray generated for all entered serials. ${updatedCount} items marked in Excel.${collageText}`);
   } catch (err) {
     console.error(err);
     setSerialFeedback(err.message || "Failed to generate final tray", true);
