@@ -85,7 +85,7 @@ async function generateCollage() {
   try {
     const response = await fetch(API_URL, {
       method: "POST",
-      body: JSON.stringify({ selected })
+      body: JSON.stringify({ selected })F
     });
 
     const blob = await response.blob();
@@ -121,13 +121,19 @@ async function shareCollage() {
 
   const file = new File([lastBlob], "collage.png", { type: "image/png" });
 
+  // ✅ Correct way to share image
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({
-      files: [file],
-      title: "Jewellery Collage"
-    });
+    try {
+      await navigator.share({
+        files: [file],
+        title: "Jewellery Collage"
+      });
+    } catch (err) {
+      console.log(err);
+      alert("Sharing cancelled");
+    }
   } else {
-    alert("Sharing not supported on this device.");
+    alert("Sharing not supported on this device. Please download and send manually.");
   }
 }
 
