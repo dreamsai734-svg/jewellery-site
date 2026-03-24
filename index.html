@@ -16,6 +16,16 @@
 
     h2 { text-align: center; }
 
+    .controls {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
+    select {
+      padding: 10px;
+      border-radius: 6px;
+    }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -67,8 +77,8 @@
     }
 
     .actions {
-      margin-top: 15px;
       text-align: center;
+      margin-top: 15px;
     }
 
     button {
@@ -83,8 +93,10 @@
 
     #spinner {
       position: fixed;
-      top:0; left:0;
-      width:100%; height:100%;
+      top:0;
+      left:0;
+      width:100%;
+      height:100%;
       background: rgba(0,0,0,0.6);
       color:white;
       display:none;
@@ -99,7 +111,7 @@
 
 <h2>Jewellery Selector</h2>
 
-<div style="text-align:center;">
+<div class="controls">
   <select id="filter" onchange="render()"></select>
 </div>
 
@@ -121,68 +133,48 @@
   <h3>Generating collage...</h3>
 </div>
 
-<!-- Firebase -->
-<script type="module">
-
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBu1O3g9yrQoQmL9z_elLAfcn_5m-x0X5s",
-  authDomain: "jewellery-collector-d0e05.firebaseapp.com",
-  projectId: "jewellery-collector-d0e05",
-  storageBucket: "jewellery-collector-d0e05.firebasestorage.app",
-  messagingSenderId: "675500587076",
-  appId: "1:675500587076:web:4e145418d9408c21c9e411"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-window.db = db;
-window.getDocs = getDocs;
-window.collection = collection;
-
-</script>
-
 <script>
 let data = [];
 let selected = [];
 let lastCanvas = null;
 
-/* ================= FIRESTORE LOAD ================= */
+/* ================= API ================= */
 
-async function loadData() {
-  console.log("Loading Firestore data...");
+const API_URL = "https://script.google.com/macros/s/AKfycbxiqDaqYYvxAyT5S9bp3uoJDtnrlrhB_xYX_eM-wiq4as_j2vIfky2QOmqGIk-drKE/exec";
 
-  const snapshot = await getDocs(collection(window.db, "jewellery"));
+/* ================= FETCH DATA ================= */
 
-  let result = [];
-
-  snapshot.forEach(doc => {
-    result.push(doc.data());
-  });
-
-  console.log("Data loaded:", result);
-  return result;
-}
-
-/* ================= INIT ================= */
-
-loadData().then(json => {
+fetch(API_URL)
+.then(res => res.json())
+.then(json => {
+  console.log("API Data:", json);
   data = json;
   initFilter();
   render();
-});
+})
+.catch(err => console.error("API error:", err));
 
 /* ================= FILTER ================= */
 
 function initFilter() {
-  let types = [...new Set(data.map(d => d.type))];
+  let types = [...new Set(data.map(d => d["Type"]))];
   let filter = document.getElementById("filter");
 
   filter.innerHTML = '<option value="">All</option>' +
     types.map(t => `<option value="${t}">${t}</option>`).join("");
+}
+
+/* ================= DRIVE URL FIX ================= */
+
+function convertToThumbnail(url) {
+  if (!url) return "";
+
+  let match = url.match(/[-\w]{25,}/);
+  if (match) {
+    return "https://drive.google.com/uc?export=view&id=" + match[0];
+  }
+
+  return url;
 }
 
 /* ================= RENDER GRID ================= */
@@ -190,18 +182,19 @@ function initFilter() {
 function render() {
   let filterValue = document.getElementById("filter").value;
 
-  let filtered = data.filter(d => !filterValue || d.type === filterValue);
+  let filtered = data.filter(d => !filterValue || d["Type"] === filterValue);
 
   let html = "";
 
   filtered.forEach(item => {
-    let isSelected = selected.includes(item.serialNo);
+    let isSelected = selected.includes(item["Serial No"]);
+    let imgUrl = convertToThumbnail(item.URL);
 
     html += `
-      <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item.serialNo}")'>
-        <img src="${item.imageUrl}">
-        <p>${item.serialNo}</p>
-        <small>${item.type}</small>
+      <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item["Serial No"]}")'>
+        <img src="${imgUrl}">
+        <p>${item["Serial No"]}</p>
+        <small>${item["Type"]}</small>
       </div>
     `;
   });
@@ -231,13 +224,16 @@ function renderSelected() {
   let area = document.getElementById("selectedArea");
 
   area.innerHTML = data
-    .filter(d => selected.includes(d.serialNo))
-    .map(item => `
-      <div class="collage-item">
-        <img src="${item.imageUrl}">
-        <div class="label">${item.serialNo}</div>
-      </div>
-    `).join("");
+    .filter(d => selected.includes(d["Serial No"]))
+    .map(item => {
+      let imgUrl = convertToThumbnail(item.URL);
+      return `
+        <div class="collage-item">
+          <img src="${imgUrl}">
+          <div class="label">${item["Serial No"]}</div>
+        </div>
+      `;
+    }).join("");
 }
 
 /* ================= COLLAGE ================= */
@@ -261,12 +257,18 @@ async function generateCollage() {
     });
   }));
 
-  const canvas = await html2canvas(container, {
-    scale: 2,
-    backgroundColor: "#ffffff"
-  });
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      backgroundColor: "#ffffff"
+    });
 
-  lastCanvas = canvas;
+    lastCanvas = canvas;
+
+  } catch (err) {
+    console.error("Collage error:", err);
+    alert("Error generating collage");
+  }
 
   document.getElementById("spinner").style.display = "none";
 }
@@ -307,9 +309,9 @@ async function shareCollage() {
 function fallbackShare() {
   let text = "Jewellery:\n\n";
 
-  data.filter(d => selected.includes(d.serialNo))
+  data.filter(d => selected.includes(d["Serial No"]))
       .forEach(d => {
-        text += d.serialNo + "\n";
+        text += d["Serial No"] + "\n";
       });
 
   window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank");
