@@ -3,12 +3,21 @@ let selected = [];
 
 const API_URL = "https://script.google.com/macros/s/AKfycbxurQyyCGIRT2nTBTEZJMBi3lCuAHH1j3wC3vOjk7d3gAqqTiFVIgMyw37pvt6E4Q/exec";
 
+console.log("App starting...");
+
 fetch(API_URL)
-.then(res => res.json())
+.then(res => {
+  console.log("Fetching data from API...");
+  return res.json();
+})
 .then(json => {
+  console.log("Data received:", json);
   data = json;
   initFilter();
   render();
+})
+.catch(err => {
+  console.error("Error fetching API:", err);
 });
 
 function initFilter() {
@@ -17,15 +26,19 @@ function initFilter() {
 
   filter.innerHTML = '<option value="">All</option>' +
     types.map(t => `<option value="${t}">${t}</option>`).join("");
+
+  console.log("Filter initialized with types:", types);
 }
 
 function convertToThumbnail(url) {
   if (!url) return "";
 
   if (url.includes("drive.google.com")) {
-    let match = url.match(/id=([a-zA-Z0-9_-]+)/);
+    let match = url.match(/[-\w]{25,}/);
     if (match) {
-      return "https://drive.google.com/thumbnail?id=" + match[1];
+      let converted = "https://drive.google.com/uc?export=view&id=" + match[0];
+      console.log("Converted Drive URL:", converted);
+      return converted;
     }
   }
 
@@ -34,7 +47,10 @@ function convertToThumbnail(url) {
 
 function render() {
   let filterValue = document.getElementById("filter").value;
+
   let filtered = data.filter(d => !filterValue || d["Type"] === filterValue);
+
+  console.log("Rendering items. Filter:", filterValue, "Count:", filtered.length);
 
   let html = "";
 
@@ -44,7 +60,7 @@ function render() {
 
     html += `
       <div class="card ${isSelected ? 'selected' : ''}" onclick='toggle("${item["Serial No"]}")'>
-        <img src="${imgUrl}">
+        <img src="${imgUrl}" onerror="console.error('Image failed:', '${imgUrl}')">
         <p>${item["Serial No"]}</p>
         <small>${item["Type"]}</small>
       </div>
@@ -56,6 +72,8 @@ function render() {
 }
 
 function toggle(id) {
+  console.log("Toggling item:", id);
+
   if (selected.includes(id)) {
     selected = selected.filter(x => x !== id);
   } else {
@@ -65,6 +83,8 @@ function toggle(id) {
     }
     selected.push(id);
   }
+
+  console.log("Selected items:", selected);
   render();
 }
 
@@ -82,14 +102,19 @@ function renderSelected() {
 }
 
 async function shareCollage() {
+  console.log("Share collage clicked");
+
   let selectedItems = data.filter(d => selected.includes(d["Serial No"]));
 
   if (selectedItems.length === 0) {
     alert("No items selected");
+    console.warn("No items selected for collage");
     return;
   }
 
   selectedItems = selectedItems.slice(0, 9);
+
+  console.log("Selected items for collage:", selectedItems);
 
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
@@ -106,14 +131,29 @@ async function shareCollage() {
   for (let item of selectedItems) {
     let img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = convertToThumbnail(item.URL);
+
+    let url = convertToThumbnail(item.URL);
+
+    console.log("Loading image:", url);
+
+    img.src = url;
+
     images.push({ img, serial: item["Serial No"] });
 
     await new Promise(resolve => {
-      img.onload = resolve;
-      img.onerror = resolve;
+      img.onload = () => {
+        console.log("Image loaded:", url);
+        resolve();
+      };
+
+      img.onerror = () => {
+        console.error("Image failed to load:", url);
+        resolve();
+      };
     });
   }
+
+  console.log("Drawing images on canvas...");
 
   images.forEach((obj, index) => {
     let col = index % cols;
@@ -122,8 +162,13 @@ async function shareCollage() {
     let x = col * size;
     let y = row * size;
 
-    ctx.drawImage(obj.img, x, y, size, size);
+    if (obj.img.complete && obj.img.naturalWidth > 0) {
+      ctx.drawImage(obj.img, x, y, size, size);
+    } else {
+      console.warn("Skipping broken image:", obj.serial);
+    }
 
+    // overlay serial number
     ctx.fillStyle = "rgba(0,0,0,0.6)";
     ctx.fillRect(x, y + size - 30, size, 30);
 
@@ -132,27 +177,42 @@ async function shareCollage() {
     ctx.fillText(obj.serial, x + 10, y + size - 10);
   });
 
+  console.log("Canvas drawing complete");
+
   canvas.toBlob(async function(blob) {
+    if (!blob) {
+      console.error("Failed to create blob from canvas");
+      fallbackTextShare();
+      return;
+    }
+
     const file = new File([blob], "collage.png", { type: "image/png" });
 
-    try {
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    await navigator.share({
-      files: [file],
-      title: "Jewellery Selection",
-      text: "Sharing jewellery collage"
-    });
-  } else {
-    throw new Error("Sharing not supported");
-  }
-} catch (err) {
-  console.log("Share failed, using fallback:", err);
-  fallbackTextShare();
-}
+    console.log("Blob created:", file);
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        console.log("Trying native share...");
+        await navigator.share({
+          files: [file],
+          title: "Jewellery Selection",
+          text: "Sharing jewellery collage"
+        });
+        console.log("Share successful");
+      } catch (err) {
+        console.error("Share failed:", err);
+        fallbackTextShare();
+      }
+    } else {
+      console.warn("Web Share API not supported, using fallback");
+      fallbackTextShare();
+    }
   });
 }
 
 function fallbackTextShare() {
+  console.log("Using WhatsApp fallback share");
+
   let text = "Selected Jewellery:\n\n";
 
   data.filter(d => selected.includes(d["Serial No"]))
@@ -160,5 +220,9 @@ function fallbackTextShare() {
         text += item["Serial No"] + "\n" + item.URL + "\n\n";
       });
 
-  window.open("https://wa.me/?text=" + encodeURIComponent(text));
+  let url = "https://wa.me/?text=" + encodeURIComponent(text);
+
+  console.log("Opening WhatsApp URL:", url);
+
+  window.open(url, "_blank");
 }
