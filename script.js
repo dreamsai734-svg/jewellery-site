@@ -85,13 +85,14 @@ async function generateCollage() {
   try {
     const response = await fetch(API_URL, {
       method: "POST",
-      body: JSON.stringify({ selected })F
+      body: JSON.stringify({ selected })
     });
 
     const blob = await response.blob();
     lastBlob = blob;
 
   } catch (err) {
+    console.error(err);
     alert("Error generating collage");
   }
 
@@ -112,7 +113,7 @@ function downloadCollage() {
   a.click();
 }
 
-/* SHARE (MOBILE WHATSAPP) */
+/* ✅ SHARE (FIXED - NO BLOBS SENT AS TEXT) */
 async function shareCollage() {
   if (!lastBlob) {
     alert("Generate collage first");
@@ -121,7 +122,6 @@ async function shareCollage() {
 
   const file = new File([lastBlob], "collage.png", { type: "image/png" });
 
-  // ✅ Correct way to share image
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({
@@ -133,7 +133,7 @@ async function shareCollage() {
       alert("Sharing cancelled");
     }
   } else {
-    alert("Sharing not supported on this device. Please download and send manually.");
+    alert("Sharing not supported. Please download and send manually.");
   }
 }
 
