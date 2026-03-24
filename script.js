@@ -4,7 +4,7 @@ let lastBlob = null;
 let lastCollageUrl = "";
 let collageBlobs = [];
 
-const API_URL = "https://script.google.com/macros/s/AKfycbyfmjc2dFzIUnHKImGLKY8u6-d2qYzNJSTnzcXF_9Rfbd18fwic-YWZOghyppocujc/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbzt3ls5kuyc4gZXYUdJQaxAF-BRwKkfjcoHpPAqKyXyiFvw_u4oMYZK-s9D0Q56Tec/exec";
 
 /* FETCH DATA */
 loadData();
@@ -243,10 +243,32 @@ async function generateFinalTrayFromSerials() {
 }
 
 function parseSerialInput(rawText) {
-  const tokens = String(rawText || "")
-    .split(/[\s,;]+/)
-    .map(t => sanitizeSerialToken(t))
+  const chunks = String(rawText || "")
+    .replace(/\r/g, "\n")
+    .split(/[\n,;]+/)
+    .map(t => t.trim())
     .filter(Boolean);
+
+  const tokens = [];
+
+  chunks.forEach(chunk => {
+    const matches = chunk.match(/[A-Za-z]+\s*-\s*[A-Za-z0-9]+/g);
+
+    if (matches && matches.length) {
+      matches.forEach(m => {
+        const normalized = sanitizeSerialToken(m);
+        if (normalized) {
+          tokens.push(normalized);
+        }
+      });
+      return;
+    }
+
+    const normalized = sanitizeSerialToken(chunk);
+    if (normalized) {
+      tokens.push(normalized);
+    }
+  });
 
   return [...new Set(tokens)];
 }
