@@ -4,7 +4,6 @@
   <title>Jewellery Selector</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <!-- CSS -->
   <link rel="stylesheet" href="style.css">
 
   <!-- html2canvas -->
@@ -23,14 +22,22 @@
 
 <h3 style="text-align:center;">Selected Preview</h3>
 
-<!-- Collage container (IMPORTANT) -->
 <div id="collageContainer">
   <div id="selectedArea"></div>
 </div>
 
-<button class="btn" onclick="shareCollage()">
-  Share Collage Image on WhatsApp
-</button>
+<!-- Actions -->
+<div class="actions">
+  <button class="btn" onclick="generateCollage()">Generate Collage</button>
+  <button class="btn" onclick="downloadCollage()">Download</button>
+  <button class="btn" onclick="shareCollage()">Share on WhatsApp</button>
+</div>
+
+<!-- Spinner -->
+<div id="spinner" class="spinner hidden">
+  <div class="loader"></div>
+  <p>Generating collage...</p>
+</div>
 
 <script src="script.js"></script>
 
