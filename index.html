@@ -39,11 +39,6 @@
       border-radius: 10px;
       cursor: pointer;
       text-align: center;
-      transition: 0.2s;
-    }
-
-    .card:hover {
-      transform: scale(1.03);
     }
 
     .card.selected {
@@ -98,8 +93,8 @@
 <h3 style="text-align:center;">Selected Preview</h3>
 <div id="selectedArea"></div>
 
-<button class="btn" onclick="shareImages()">
-  Share Selected Images on WhatsApp
+<button class="btn" onclick="shareCollage()">
+  Share Collage Image on WhatsApp
 </button>
 
 <script>
@@ -165,6 +160,10 @@ function toggle(id) {
   if (selected.includes(id)) {
     selected = selected.filter(x => x !== id);
   } else {
+    if (selected.length >= 9) {
+      alert("Maximum 9 items allowed for collage");
+      return;
+    }
     selected.push(id);
   }
   render();
@@ -183,7 +182,7 @@ function renderSelected() {
   area.innerHTML = html;
 }
 
-async function shareImages() {
+async function shareCollage() {
   let selectedItems = data.filter(d => selected.includes(d["Serial No"]));
 
   if (selectedItems.length === 0) {
@@ -191,36 +190,70 @@ async function shareImages() {
     return;
   }
 
-  try {
-    let files = [];
+  selectedItems = selectedItems.slice(0, 9);
 
-    for (let item of selectedItems) {
-      let imgUrl = convertToThumbnail(item.URL);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
 
-      let response = await fetch(imgUrl);
-      let blob = await response.blob();
+  const size = 300;
+  const cols = 3;
+  const rows = Math.ceil(selectedItems.length / 3);
 
-      let file = new File([blob], item["Serial No"] + ".jpg", { type: blob.type });
-      files.push(file);
-    }
+  canvas.width = cols * size;
+  canvas.height = rows * size;
 
-    if (navigator.canShare && navigator.canShare({ files })) {
-      await navigator.share({
-        files: files,
-        title: "Jewellery Selection",
-        text: "Sharing selected jewellery"
-      });
-    } else {
-      fallbackWhatsAppText();
-    }
+  let images = [];
 
-  } catch (err) {
-    console.log(err);
-    fallbackWhatsAppText();
+  for (let item of selectedItems) {
+    let img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = convertToThumbnail(item.URL);
+    images.push({ img, serial: item["Serial No"] });
+
+    await new Promise(resolve => {
+      img.onload = resolve;
+      img.onerror = resolve;
+    });
   }
+
+  images.forEach((obj, index) => {
+    let col = index % cols;
+    let row = Math.floor(index / cols);
+
+    let x = col * size;
+    let y = row * size;
+
+    ctx.drawImage(obj.img, x, y, size, size);
+
+    // overlay serial number
+    ctx.fillStyle = "rgba(0,0,0,0.6)";
+    ctx.fillRect(x, y + size - 30, size, 30);
+
+    ctx.fillStyle = "white";
+    ctx.font = "16px Arial";
+    ctx.fillText(obj.serial, x + 10, y + size - 10);
+  });
+
+  canvas.toBlob(async function(blob) {
+    const file = new File([blob], "collage.png", { type: "image/png" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({
+          files: [file],
+          title: "Jewellery Selection",
+          text: "Sharing jewellery collage"
+        });
+      } catch (err) {
+        fallbackTextShare();
+      }
+    } else {
+      fallbackTextShare();
+    }
+  });
 }
 
-function fallbackWhatsAppText() {
+function fallbackTextShare() {
   let text = "Selected Jewellery:\n\n";
 
   data.filter(d => selected.includes(d["Serial No"]))
