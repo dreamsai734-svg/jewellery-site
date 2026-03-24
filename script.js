@@ -444,18 +444,15 @@ async function buildCollageBlob(items) {
 
     if (entry.image) {
       const source = entry.image;
-      const scale = Math.max(cellSize / source.width, cellSize / source.height);
+      const innerPadding = 8;
+      const drawBoxSize = cellSize - innerPadding * 2;
+      const scale = Math.min(drawBoxSize / source.width, drawBoxSize / source.height);
       const drawWidth = source.width * scale;
       const drawHeight = source.height * scale;
       const dx = x + (cellSize - drawWidth) / 2;
       const dy = y + (cellSize - drawHeight) / 2;
 
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(x, y, cellSize, cellSize);
-      ctx.clip();
       ctx.drawImage(source, dx, dy, drawWidth, drawHeight);
-      ctx.restore();
     } else {
       ctx.fillStyle = "#f1f1f1";
       ctx.fillRect(x, y, cellSize, cellSize);
