@@ -135,19 +135,20 @@ async function shareCollage() {
   canvas.toBlob(async function(blob) {
     const file = new File([blob], "collage.png", { type: "image/png" });
 
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({
-          files: [file],
-          title: "Jewellery Selection",
-          text: "Sharing jewellery collage"
-        });
-      } catch (err) {
-        fallbackTextShare();
-      }
-    } else {
-      fallbackTextShare();
-    }
+    try {
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: "Jewellery Selection",
+      text: "Sharing jewellery collage"
+    });
+  } else {
+    throw new Error("Sharing not supported");
+  }
+} catch (err) {
+  console.log("Share failed, using fallback:", err);
+  fallbackTextShare();
+}
   });
 }
 
