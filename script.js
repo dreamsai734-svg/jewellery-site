@@ -23,12 +23,15 @@ function initFilter() {
 function convertToThumbnail(url) {
   if (!url) return "";
 
-  if (url.includes("drive.google.com")) {
-    let match = url.match(/[-\w]{25,}/);
-    if (match) {
-      return "https://drive.google.com/uc?export=view&id=" + match[0];
-    }
+  // Extract file ID
+  let match = url.match(/[-\w]{25,}/);
+
+  if (match) {
+    let id = match[0];
+
+    return `https://drive.usercontent.google.com/download?id=${id}&export=view&authuser=0`;
   }
+
   return url;
 }
 
