@@ -5,6 +5,8 @@ let lastCollageUrl = "";
 let collageBlobs = [];
 let lastExportItems = [];
 let lastExportTitle = "Jewellery Tray";
+let lastPdfBlob = null;
+let lastPdfUrl = "";
 
 const API_URL = "https://script.google.com/macros/s/AKfycbxR-98U3MLMyvwhaFBF8XavgLMo9L6tnhUkH55fo4JDvgnckxCYBl9s8xIBBfUUO_U/exec";
 
@@ -59,6 +61,24 @@ function initFilter() {
     types.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
+function updateDashboardStats(visibleCount) {
+  const total = data.length;
+  const marked = data.filter(item => normalizeStatus(item["Status"]) === "marked").length;
+  const available = Math.max(0, total - marked);
+
+  const totalNode = document.getElementById("statTotal");
+  const availableNode = document.getElementById("statAvailable");
+  const selectedNode = document.getElementById("statSelected");
+  const markedNode = document.getElementById("statMarked");
+  const summaryNode = document.getElementById("gridSummary");
+
+  if (totalNode) totalNode.textContent = String(total);
+  if (availableNode) availableNode.textContent = String(available);
+  if (selectedNode) selectedNode.textContent = String(selected.length);
+  if (markedNode) markedNode.textContent = String(marked);
+  if (summaryNode) summaryNode.textContent = `${visibleCount} visible item${visibleCount === 1 ? "" : "s"}`;
+}
+
 /* RENDER GRID */
 function render() {
   let filterType = document.getElementById("filterType").value;
@@ -104,6 +124,7 @@ function render() {
   });
 
   document.getElementById("grid").innerHTML = html;
+  updateDashboardStats(filtered.length);
   renderSelected();
 }
 
@@ -126,14 +147,18 @@ function toggle(id) {
 /* COLLAGE PREVIEW */
 function renderSelected() {
   let area = document.getElementById("selectedArea");
-  area.style.display = "grid";
+  const selectedItems = data.filter(d => selected.includes(d["Serial No"]));
 
-  area.innerHTML = data
-    .filter(d => selected.includes(d["Serial No"]))
+  if (!selectedItems.length) {
+    area.innerHTML = '<div class="selection-empty">No items selected yet. Choose pieces from the catalogue to prepare a PDF.</div>';
+    return;
+  }
+
+  area.innerHTML = selectedItems
     .map(item => `
-      <div class="collage-item">
-        <img src="${item["DisplayURL"]}">
-        <div class="label">${item["Serial No"]}</div>
+      <div class="selection-card">
+        <img src="${item["DisplayURL"]}" alt="${item["Serial No"]}">
+        <p>${item["Serial No"]}</p>
       </div>
     `).join("");
 }
@@ -174,21 +199,18 @@ async function generateCollage() {
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
-  lastExportItems = exportItems;
-  lastExportTitle = "Jewellery Selection";
+    lastExportItems = exportItems;
+    lastExportTitle = "Jewellery Selection";
+    lastPdfBlob = null;
 
     if (lastCollageUrl) {
       URL.revokeObjectURL(lastCollageUrl);
     }
 
-    lastCollageUrl = URL.createObjectURL(lastBlob);
-    const preview = document.getElementById("collagePreview");
-    preview.src = lastCollageUrl;
-    preview.style.display = "block";
-    document.getElementById("selectedArea").style.display = "none";
+    await rebuildPdfPreview();
 
     if (collageBlobs.length > 1) {
-      alert(`${collageBlobs.length} collages generated. Download will save all files.`);
+      alert(`${collageBlobs.length} PDF pages prepared. Preview updated.`);
     }
 
   } catch (err) {
@@ -236,18 +258,15 @@ async function generateFinalTrayFromSerials() {
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
-  lastExportItems = exportItems;
-  lastExportTitle = "Final Tray";
+    lastExportItems = exportItems;
+    lastExportTitle = "Final Tray";
+    lastPdfBlob = null;
 
     if (lastCollageUrl) {
       URL.revokeObjectURL(lastCollageUrl);
     }
 
-    lastCollageUrl = URL.createObjectURL(lastBlob);
-    const preview = document.getElementById("collagePreview");
-    preview.src = lastCollageUrl;
-    preview.style.display = "block";
-    document.getElementById("selectedArea").style.display = "none";
+    await rebuildPdfPreview();
 
     await loadData();
 
@@ -353,112 +372,92 @@ function setSerialFeedback(message, isError) {
   node.style.color = isError ? "#b42318" : "#155724";
 }
 
-async function blobToDataUrl(blob) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Unable to read file data"));
-    reader.readAsDataURL(blob);
-  });
-}
+function updatePdfMeta() {
+  const node = document.getElementById("pdfMeta");
+  if (!node) {
+    return;
+  }
 
-async function itemToPdfImageData(item) {
-  const image = await loadImageWithFallback(item);
-  const canvas = document.createElement("canvas");
-  canvas.width = image.naturalWidth || image.width;
-  canvas.height = image.naturalHeight || image.height;
-  const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(image, 0, 0);
-  return canvas.toDataURL("image/png", 0.95);
-}
-
-async function buildPdfBlob() {
   if (!collageBlobs.length) {
-    throw new Error("Generate collage first");
+    node.textContent = "No PDF generated yet";
+    return;
   }
 
-  const jsPdfApi = window.jspdf && window.jspdf.jsPDF;
-  if (!jsPdfApi) {
-    throw new Error("PDF library not loaded");
+  node.textContent = `${lastExportTitle} · ${collageBlobs.length} page${collageBlobs.length === 1 ? "" : "s"} · ${lastExportItems.length} code${lastExportItems.length === 1 ? "" : "s"}`;
+}
+
+function clearPdfPreview() {
+  const frame = document.getElementById("pdfPreviewFrame");
+  const placeholder = document.getElementById("previewPlaceholder");
+
+  if (lastPdfUrl) {
+    URL.revokeObjectURL(lastPdfUrl);
+    lastPdfUrl = "";
   }
 
-  const pdf = new jsPdfApi({
-    orientation: "portrait",
-    unit: "pt",
-    format: "a4"
+  lastPdfBlob = null;
+
+  if (frame) {
+    frame.removeAttribute("src");
+    frame.classList.remove("visible");
+  }
+
+  if (placeholder) {
+    placeholder.classList.remove("hidden");
+  }
+
+  updatePdfMeta();
+}
+
+function setPdfPreview(blob) {
+  const frame = document.getElementById("pdfPreviewFrame");
+  const placeholder = document.getElementById("previewPlaceholder");
+
+  if (lastPdfUrl) {
+    URL.revokeObjectURL(lastPdfUrl);
+  }
+
+  lastPdfBlob = blob;
+  lastPdfUrl = URL.createObjectURL(blob);
+
+  if (frame) {
+    frame.src = lastPdfUrl;
+    frame.classList.add("visible");
+  }
+
+  if (placeholder) {
+    placeholder.classList.add("hidden");
+  }
+
+  updatePdfMeta();
+}
+
+async function rebuildPdfPreview() {
+  if (!collageBlobs.length) {
+    clearPdfPreview();
+    return null;
+  }
+
+  if (!window.JewelleryPdf || typeof window.JewelleryPdf.buildPdfBlob !== "function") {
+    throw new Error("PDF builder not loaded");
+  }
+
+  const pdfBlob = await window.JewelleryPdf.buildPdfBlob({
+    pageBlobs: collageBlobs,
+    items: lastExportItems,
+    title: lastExportTitle
   });
 
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 26;
-  const totalPages = collageBlobs.length + (lastExportItems.length ? 1 : 0);
+  setPdfPreview(pdfBlob);
+  return pdfBlob;
+}
 
-  function drawPageHeader(pageNumber) {
-    pdf.setFillColor(19, 28, 48);
-    pdf.roundedRect(margin, margin, pageWidth - margin * 2, 50, 14, 14, "F");
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(20);
-    pdf.text(lastExportTitle, margin + 16, margin + 22);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.text("Mobile-friendly collage PDF with high-contrast serial labels", margin + 16, margin + 38);
-    pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin - 74, margin + 38);
+async function ensurePdfBlob() {
+  if (lastPdfBlob) {
+    return lastPdfBlob;
   }
 
-  for (let index = 0; index < collageBlobs.length; index++) {
-    if (index > 0) {
-      pdf.addPage();
-    }
-
-    drawPageHeader(index + 1);
-
-    const frameX = margin;
-    const frameY = margin + 64;
-    const frameWidth = pageWidth - margin * 2;
-    const frameHeight = pageHeight - frameY - margin;
-
-    pdf.setFillColor(255, 255, 255);
-    pdf.setDrawColor(216, 220, 227);
-    pdf.roundedRect(frameX, frameY, frameWidth, frameHeight, 12, 12, "FD");
-
-    const imageDataUrl = await blobToDataUrl(collageBlobs[index]);
-    const imageProps = pdf.getImageProperties(imageDataUrl);
-    const availableWidth = frameWidth - 20;
-    const availableHeight = frameHeight - 20;
-    const scale = Math.min(availableWidth / imageProps.width, availableHeight / imageProps.height);
-    const renderWidth = imageProps.width * scale;
-    const renderHeight = imageProps.height * scale;
-    const imageX = frameX + (frameWidth - renderWidth) / 2;
-    const imageY = frameY + (frameHeight - renderHeight) / 2;
-    pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
-  }
-
-  if (lastExportItems.length) {
-    pdf.addPage();
-    drawPageHeader(totalPages);
-    pdf.setTextColor(30, 30, 30);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(15);
-    pdf.text("Serial Codes", margin, margin + 78);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(12);
-
-    const summaryColumnGap = 24;
-    const summaryColumnWidth = (pageWidth - margin * 2 - summaryColumnGap) / 2;
-
-    lastExportItems.forEach((item, index) => {
-      const col = index % 2;
-      const row = Math.floor(index / 2);
-      const x = margin + col * (summaryColumnWidth + summaryColumnGap);
-      const y = margin + 104 + row * 18;
-      pdf.text(`${index + 1}. ${String(item["Serial No"] || "")}`, x, y);
-    });
-  }
-
-  return pdf.output("blob");
+  return rebuildPdfPreview();
 }
 
 /* DOWNLOAD */
@@ -469,7 +468,7 @@ async function downloadCollage() {
   }
 
   try {
-    const pdfBlob = await buildPdfBlob();
+    const pdfBlob = await ensurePdfBlob();
     triggerBlobDownload(pdfBlob, "jewellery-collage.pdf");
   } catch (err) {
     console.error(err);
@@ -487,7 +486,7 @@ async function shareCollage() {
   let pdfBlob;
 
   try {
-    pdfBlob = await buildPdfBlob();
+    pdfBlob = await ensurePdfBlob();
   } catch (err) {
     console.error(err);
     alert("Unable to build PDF. Please try again.");
