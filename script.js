@@ -3,6 +3,8 @@ let selected = [];
 let lastBlob = null;
 let lastCollageUrl = "";
 let collageBlobs = [];
+let lastExportItems = [];
+let lastExportTitle = "Jewellery Tray";
 
 const API_URL = "https://script.google.com/macros/s/AKfycbxR-98U3MLMyvwhaFBF8XavgLMo9L6tnhUkH55fo4JDvgnckxCYBl9s8xIBBfUUO_U/exec";
 
@@ -148,15 +150,17 @@ async function generateCollage() {
   try {
     const selectedChunks = chunkArray(selected, 9);
     const generatedBlobs = [];
+    const exportItems = [];
 
     for (const chunkIds of selectedChunks) {
       let collageBlob;
+      const selectedItems = data.filter(d => chunkIds.includes(d["Serial No"]));
+      exportItems.push(...selectedItems);
 
       try {
         collageBlob = await buildCollageBlobOnServer(chunkIds);
       } catch (serverErr) {
         console.warn("Server collage failed for chunk, using browser fallback", serverErr);
-        const selectedItems = data.filter(d => chunkIds.includes(d["Serial No"]));
         collageBlob = await buildCollageBlob(selectedItems);
       }
 
@@ -170,6 +174,8 @@ async function generateCollage() {
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
+  lastExportItems = exportItems;
+  lastExportTitle = "Jewellery Selection";
 
     if (lastCollageUrl) {
       URL.revokeObjectURL(lastCollageUrl);
@@ -210,6 +216,7 @@ async function generateFinalTrayFromSerials() {
     const generatedBlobs = [];
     const allMissing = new Set();
     let updatedCount = 0;
+    const exportItems = resolveItemsBySerials(serials);
 
     for (const serialChunk of serialChunks) {
       const result = await buildFinalTrayAndMarkOnServer(serialChunk);
@@ -229,6 +236,8 @@ async function generateFinalTrayFromSerials() {
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
+  lastExportItems = exportItems;
+  lastExportTitle = "Final Tray";
 
     if (lastCollageUrl) {
       URL.revokeObjectURL(lastCollageUrl);
@@ -298,29 +307,210 @@ function sanitizeSerialToken(token) {
     .replace(/[^A-Z0-9]/g, "");
 }
 
+function resolveItemsBySerials(serials) {
+  const bySerial = new Map();
+
+  data.forEach(item => {
+    const key = sanitizeSerialToken(item["Serial No"] || "");
+    if (key) {
+      bySerial.set(key, item);
+    }
+  });
+
+  const keys = [...bySerial.keys()];
+  const items = [];
+  const seen = new Set();
+
+  serials.forEach(serial => {
+    const normalized = sanitizeSerialToken(serial);
+    if (!normalized) {
+      return;
+    }
+
+    let match = bySerial.get(normalized);
+    if (!match) {
+      const suffixMatches = keys.filter(key => key.endsWith(normalized));
+      if (suffixMatches.length === 1) {
+        match = bySerial.get(suffixMatches[0]);
+      }
+    }
+
+    if (match) {
+      const serialNo = String(match["Serial No"] || "");
+      if (!seen.has(serialNo)) {
+        seen.add(serialNo);
+        items.push(match);
+      }
+    }
+  });
+
+  return items;
+}
+
 function setSerialFeedback(message, isError) {
   const node = document.getElementById("serialFeedback");
   node.textContent = message;
   node.style.color = isError ? "#b42318" : "#155724";
 }
 
+async function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Unable to read file data"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function itemToPdfImageData(item) {
+  const image = await loadImageWithFallback(item);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth || image.width;
+  canvas.height = image.naturalHeight || image.height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(image, 0, 0);
+  return canvas.toDataURL("image/png", 0.95);
+}
+
+async function buildPdfBlob() {
+  if (!lastExportItems.length) {
+    throw new Error("Generate collage first");
+  }
+
+  const jsPdfApi = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPdfApi) {
+    throw new Error("PDF library not loaded");
+  }
+
+  const pdf = new jsPdfApi({
+    orientation: "portrait",
+    unit: "pt",
+    format: "a4"
+  });
+
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 26;
+  const gap = 16;
+  const columns = 2;
+  const rowsPerPage = 3;
+  const cardsPerPage = columns * rowsPerPage;
+  const cardWidth = (pageWidth - margin * 2 - gap) / columns;
+  const cardHeight = 228;
+  const imageHeight = 150;
+  const totalPages = Math.ceil(lastExportItems.length / cardsPerPage) + 1;
+
+  function drawPageHeader(pageNumber) {
+    pdf.setFillColor(19, 28, 48);
+    pdf.roundedRect(margin, margin, pageWidth - margin * 2, 50, 14, 14, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(20);
+    pdf.text(lastExportTitle, margin + 16, margin + 22);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(10);
+    pdf.text("Mobile-friendly collage PDF with high-contrast serial labels", margin + 16, margin + 38);
+    pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin - 74, margin + 38);
+  }
+
+  for (let index = 0; index < lastExportItems.length; index++) {
+    if (index > 0 && index % cardsPerPage === 0) {
+      pdf.addPage();
+    }
+
+    const pageNumber = Math.floor(index / cardsPerPage) + 1;
+    const indexOnPage = index % cardsPerPage;
+    if (indexOnPage === 0) {
+      drawPageHeader(pageNumber);
+    }
+
+    const row = Math.floor(indexOnPage / columns);
+    const col = indexOnPage % columns;
+    const x = margin + col * (cardWidth + gap);
+    const y = margin + 64 + row * (cardHeight + gap);
+    const item = lastExportItems[index];
+    const serialNo = String(item["Serial No"] || "");
+    const typeName = String(item["Type"] || "Jewellery");
+    const brandName = String(item["Brand Name"] || "");
+
+    pdf.setFillColor(255, 255, 255);
+    pdf.setDrawColor(216, 220, 227);
+    pdf.roundedRect(x, y, cardWidth, cardHeight, 12, 12, "FD");
+
+    try {
+      const imageDataUrl = await itemToPdfImageData(item);
+      const imageProps = pdf.getImageProperties(imageDataUrl);
+      const scale = Math.min((cardWidth - 20) / imageProps.width, imageHeight / imageProps.height);
+      const renderWidth = imageProps.width * scale;
+      const renderHeight = imageProps.height * scale;
+      const imageX = x + (cardWidth - renderWidth) / 2;
+      const imageY = y + 10 + (imageHeight - renderHeight) / 2;
+      pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
+    } catch (err) {
+      pdf.setFillColor(243, 244, 246);
+      pdf.roundedRect(x + 10, y + 10, cardWidth - 20, imageHeight, 8, 8, "F");
+      pdf.setTextColor(110, 110, 110);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(13);
+      pdf.text("Image unavailable", x + cardWidth / 2, y + 88, { align: "center" });
+    }
+
+    pdf.setFillColor(17, 17, 17);
+    pdf.roundedRect(x + 10, y + imageHeight + 18, cardWidth - 20, 34, 8, 8, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(16);
+    pdf.text(serialNo, x + cardWidth / 2, y + imageHeight + 40, { align: "center" });
+
+    pdf.setTextColor(32, 32, 32);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.text(typeName, x + 12, y + imageHeight + 70);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(10);
+    const brandLines = pdf.splitTextToSize(brandName, cardWidth - 24);
+    pdf.text(brandLines, x + 12, y + imageHeight + 86);
+  }
+
+  pdf.addPage();
+  drawPageHeader(totalPages);
+  pdf.setTextColor(30, 30, 30);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(15);
+  pdf.text("Serial Codes", margin, margin + 78);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(12);
+
+  const summaryColumnGap = 24;
+  const summaryColumnWidth = (pageWidth - margin * 2 - summaryColumnGap) / 2;
+
+  lastExportItems.forEach((item, index) => {
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    const x = margin + col * (summaryColumnWidth + summaryColumnGap);
+    const y = margin + 104 + row * 18;
+    pdf.text(`${index + 1}. ${String(item["Serial No"] || "")}`, x, y);
+  });
+
+  return pdf.output("blob");
+}
+
 /* DOWNLOAD */
-function downloadCollage() {
+async function downloadCollage() {
   if (!collageBlobs.length) {
     alert("Generate collage first");
     return;
   }
 
-  if (collageBlobs.length === 1) {
-    triggerBlobDownload(collageBlobs[0], "collage-1.png");
-    return;
+  try {
+    const pdfBlob = await buildPdfBlob();
+    triggerBlobDownload(pdfBlob, "jewellery-collage.pdf");
+  } catch (err) {
+    console.error(err);
+    alert("Unable to build PDF. Please try again.");
   }
-
-  collageBlobs.forEach((blob, index) => {
-    setTimeout(() => {
-      triggerBlobDownload(blob, `collage-${index + 1}.png`);
-    }, index * 300);
-  });
 }
 
 /* ✅ SHARE (FIXED - NO BLOBS SENT AS TEXT) */
@@ -330,31 +520,37 @@ async function shareCollage() {
     return;
   }
 
-  const files = collageBlobs.map((blob, index) => new File([blob], `collage-${index + 1}.png`, { type: "image/png" }));
+  let pdfBlob;
+
+  try {
+    pdfBlob = await buildPdfBlob();
+  } catch (err) {
+    console.error(err);
+    alert("Unable to build PDF. Please try again.");
+    return;
+  }
+
+  const files = [new File([pdfBlob], "jewellery-collage.pdf", { type: "application/pdf" })];
 
   if (navigator.canShare && navigator.canShare({ files })) {
     try {
       await navigator.share({
         files,
-        title: "Jewellery Collage",
-        text: "Jewellery collage"
+        title: "Jewellery PDF",
+        text: "Jewellery final tray PDF"
       });
     } catch (err) {
       console.log(err);
       if (err && err.name !== "AbortError") {
-        alert("Sharing failed on this device. Please download and attach manually in WhatsApp.");
+        alert("Sharing failed on this device. Please download the PDF and attach it manually in WhatsApp.");
       }
     }
   } else {
-    collageBlobs.forEach((blob, index) => {
-      setTimeout(() => {
-        triggerBlobDownload(blob, `collage-${index + 1}.png`);
-      }, index * 300);
-    });
+    triggerBlobDownload(pdfBlob, "jewellery-collage.pdf");
 
-    const whatsappText = encodeURIComponent("Collages downloaded. Please attach collage files here.");
+    const whatsappText = encodeURIComponent("PDF downloaded. Please attach the jewellery PDF here.");
     window.open(`https://web.whatsapp.com/send?text=${whatsappText}`, "_blank");
-    alert("This browser cannot directly share files to WhatsApp. Collage files are downloaded. Attach them in WhatsApp.");
+    alert("This browser cannot directly share PDF files to WhatsApp. The PDF has been downloaded. Attach it in WhatsApp.");
   }
 }
 
