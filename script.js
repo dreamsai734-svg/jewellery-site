@@ -375,7 +375,7 @@ async function itemToPdfImageData(item) {
 }
 
 async function buildPdfBlob() {
-  if (!lastExportItems.length) {
+  if (!collageBlobs.length) {
     throw new Error("Generate collage first");
   }
 
@@ -393,14 +393,7 @@ async function buildPdfBlob() {
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 26;
-  const gap = 16;
-  const columns = 2;
-  const rowsPerPage = 3;
-  const cardsPerPage = columns * rowsPerPage;
-  const cardWidth = (pageWidth - margin * 2 - gap) / columns;
-  const cardHeight = 228;
-  const imageHeight = 150;
-  const totalPages = Math.ceil(lastExportItems.length / cardsPerPage) + 1;
+  const totalPages = collageBlobs.length + (lastExportItems.length ? 1 : 0);
 
   function drawPageHeader(pageNumber) {
     pdf.setFillColor(19, 28, 48);
@@ -415,84 +408,55 @@ async function buildPdfBlob() {
     pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin - 74, margin + 38);
   }
 
-  for (let index = 0; index < lastExportItems.length; index++) {
-    if (index > 0 && index % cardsPerPage === 0) {
+  for (let index = 0; index < collageBlobs.length; index++) {
+    if (index > 0) {
       pdf.addPage();
     }
 
-    const pageNumber = Math.floor(index / cardsPerPage) + 1;
-    const indexOnPage = index % cardsPerPage;
-    if (indexOnPage === 0) {
-      drawPageHeader(pageNumber);
-    }
+    drawPageHeader(index + 1);
 
-    const row = Math.floor(indexOnPage / columns);
-    const col = indexOnPage % columns;
-    const x = margin + col * (cardWidth + gap);
-    const y = margin + 64 + row * (cardHeight + gap);
-    const item = lastExportItems[index];
-    const serialNo = String(item["Serial No"] || "");
-    const typeName = String(item["Type"] || "Jewellery");
-    const brandName = String(item["Brand Name"] || "");
+    const frameX = margin;
+    const frameY = margin + 64;
+    const frameWidth = pageWidth - margin * 2;
+    const frameHeight = pageHeight - frameY - margin;
 
     pdf.setFillColor(255, 255, 255);
     pdf.setDrawColor(216, 220, 227);
-    pdf.roundedRect(x, y, cardWidth, cardHeight, 12, 12, "FD");
+    pdf.roundedRect(frameX, frameY, frameWidth, frameHeight, 12, 12, "FD");
 
-    try {
-      const imageDataUrl = await itemToPdfImageData(item);
-      const imageProps = pdf.getImageProperties(imageDataUrl);
-      const scale = Math.min((cardWidth - 20) / imageProps.width, imageHeight / imageProps.height);
-      const renderWidth = imageProps.width * scale;
-      const renderHeight = imageProps.height * scale;
-      const imageX = x + (cardWidth - renderWidth) / 2;
-      const imageY = y + 10 + (imageHeight - renderHeight) / 2;
-      pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
-    } catch (err) {
-      pdf.setFillColor(243, 244, 246);
-      pdf.roundedRect(x + 10, y + 10, cardWidth - 20, imageHeight, 8, 8, "F");
-      pdf.setTextColor(110, 110, 110);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(13);
-      pdf.text("Image unavailable", x + cardWidth / 2, y + 88, { align: "center" });
-    }
-
-    pdf.setFillColor(17, 17, 17);
-    pdf.roundedRect(x + 10, y + imageHeight + 18, cardWidth - 20, 34, 8, 8, "F");
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(16);
-    pdf.text(serialNo, x + cardWidth / 2, y + imageHeight + 40, { align: "center" });
-
-    pdf.setTextColor(32, 32, 32);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(11);
-    pdf.text(typeName, x + 12, y + imageHeight + 70);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    const brandLines = pdf.splitTextToSize(brandName, cardWidth - 24);
-    pdf.text(brandLines, x + 12, y + imageHeight + 86);
+    const imageDataUrl = await blobToDataUrl(collageBlobs[index]);
+    const imageProps = pdf.getImageProperties(imageDataUrl);
+    const availableWidth = frameWidth - 20;
+    const availableHeight = frameHeight - 20;
+    const scale = Math.min(availableWidth / imageProps.width, availableHeight / imageProps.height);
+    const renderWidth = imageProps.width * scale;
+    const renderHeight = imageProps.height * scale;
+    const imageX = frameX + (frameWidth - renderWidth) / 2;
+    const imageY = frameY + (frameHeight - renderHeight) / 2;
+    pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
   }
 
-  pdf.addPage();
-  drawPageHeader(totalPages);
-  pdf.setTextColor(30, 30, 30);
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(15);
-  pdf.text("Serial Codes", margin, margin + 78);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(12);
+  if (lastExportItems.length) {
+    pdf.addPage();
+    drawPageHeader(totalPages);
+    pdf.setTextColor(30, 30, 30);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(15);
+    pdf.text("Serial Codes", margin, margin + 78);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(12);
 
-  const summaryColumnGap = 24;
-  const summaryColumnWidth = (pageWidth - margin * 2 - summaryColumnGap) / 2;
+    const summaryColumnGap = 24;
+    const summaryColumnWidth = (pageWidth - margin * 2 - summaryColumnGap) / 2;
 
-  lastExportItems.forEach((item, index) => {
-    const col = index % 2;
-    const row = Math.floor(index / 2);
-    const x = margin + col * (summaryColumnWidth + summaryColumnGap);
-    const y = margin + 104 + row * 18;
-    pdf.text(`${index + 1}. ${String(item["Serial No"] || "")}`, x, y);
-  });
+    lastExportItems.forEach((item, index) => {
+      const col = index % 2;
+      const row = Math.floor(index / 2);
+      const x = margin + col * (summaryColumnWidth + summaryColumnGap);
+      const y = margin + 104 + row * 18;
+      pdf.text(`${index + 1}. ${String(item["Serial No"] || "")}`, x, y);
+    });
+  }
 
   return pdf.output("blob");
 }
