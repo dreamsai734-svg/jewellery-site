@@ -46,8 +46,8 @@
 <!-- ACTION BUTTONS -->
 <div class="actions">
   <button class="btn" onclick="generateCollage()">Generate Collage</button>
-  <button class="btn" onclick="downloadCollage()">Download</button>
-  <button class="btn" onclick="shareCollage()">Share WhatsApp</button>
+  <button class="btn" onclick="downloadCollage()">Download PDF</button>
+  <button class="btn" onclick="shareCollage()">Share PDF on WhatsApp</button>
 </div>
 </section>
 
@@ -60,6 +60,8 @@ RING-AB1234
 NECK-XY9876"></textarea>
     <div class="actions">
       <button class="btn" onclick="generateFinalTrayFromSerials()">Generate Final Tray + Mark in Excel</button>
+      <button class="btn" onclick="downloadCollage()">Download Final Tray PDF</button>
+      <button class="btn" onclick="shareCollage()">Share Final Tray PDF</button>
     </div>
     <div id="serialFeedback" class="feedback"></div>
   </div>
@@ -72,7 +74,8 @@ NECK-XY9876"></textarea>
 </div>
 
 <!-- SCRIPT -->
-<script src="script.js?v=20260325-1"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="script.js?v=20260326-2"></script>
 
 </body>
 </html>
