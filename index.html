@@ -1,81 +1,154 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Jewellery Collage</title>
+  <title>Jewellery PDF Studio</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
-
-<h2>Jewellery Selector</h2>
-
-<div class="tabs">
-  <button id="tabBrowseBtn" class="tab-btn active" onclick="switchTab('browse')">Browse Items</button>
-  <button id="tabFinalTrayBtn" class="tab-btn" onclick="switchTab('finalTray')">Final Tray by Serial</button>
-</div>
-
-<section id="browseTab" class="tab-section active">
-
-<!-- FILTER -->
-<div class="controls">
-  <select id="filterType" onchange="render()"></select>
-  <select id="filterStatus" onchange="render()">
-    <option value="">All Status</option>
-    <option value="unmarked">Unmarked</option>
-    <option value="marked">Marked</option>
-  </select>
-  <label class="hide-marked-toggle">
-    <input id="hideMarked" type="checkbox" checked onchange="render()">
-    Hide Marked
-  </label>
-</div>
-
-<!-- GRID -->
-<div class="grid" id="grid"></div>
-
-<!-- COLLAGE PREVIEW -->
-<div id="collageContainer">
-  <div id="selectedArea"></div>
-
-  <!-- ✅ PREVIEW IMAGE (IMPORTANT) -->
-  <img id="collagePreview" style="max-width:100%; margin-top:20px; display:none;" />
-</div>
-
-<!-- ACTION BUTTONS -->
-<div class="actions">
-  <button class="btn" onclick="generateCollage()">Generate Collage</button>
-  <button class="btn" onclick="downloadCollage()">Download PDF</button>
-  <button class="btn" onclick="shareCollage()">Share PDF on WhatsApp</button>
-</div>
-</section>
-
-<section id="finalTrayTab" class="tab-section">
-  <div class="final-tray-panel">
-    <h3>Generate Final Tray by Serial Codes</h3>
-    <p>Paste serial numbers separated by comma, space, or new line.</p>
-    <textarea id="serialInput" rows="5" placeholder="Example:
-RING-AB1234
-NECK-XY9876"></textarea>
-    <div class="actions">
-      <button class="btn" onclick="generateFinalTrayFromSerials()">Generate Final Tray + Mark in Excel</button>
-      <button class="btn" onclick="downloadCollage()">Download Final Tray PDF</button>
-      <button class="btn" onclick="shareCollage()">Share Final Tray PDF</button>
+<div class="page-shell">
+  <header class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Jewellery PDF Studio</p>
+      <h1>Build polished client PDFs and keep marked stock in sync</h1>
+      <p class="hero-text">Select from your catalogue, prepare a WhatsApp-ready PDF, and use the final tray workflow without leaving the page.</p>
     </div>
-    <div id="serialFeedback" class="feedback"></div>
-  </div>
-</section>
+    <div class="hero-stats">
+      <article class="stat-card">
+        <span id="statTotal">0</span>
+        <p>Total Pieces</p>
+      </article>
+      <article class="stat-card">
+        <span id="statAvailable">0</span>
+        <p>Available</p>
+      </article>
+      <article class="stat-card">
+        <span id="statSelected">0</span>
+        <p>Selected</p>
+      </article>
+      <article class="stat-card accent">
+        <span id="statMarked">0</span>
+        <p>Marked</p>
+      </article>
+    </div>
+  </header>
 
-<!-- SPINNER -->
-<div id="spinner" class="spinner hidden">
-  <div class="loader"></div>
-  <p>Generating...</p>
+  <main class="workspace">
+    <section class="workspace-main">
+      <div class="panel tabs-panel">
+        <div class="tabs">
+          <button id="tabBrowseBtn" class="tab-btn active" onclick="switchTab('browse')">Browse Items</button>
+          <button id="tabFinalTrayBtn" class="tab-btn" onclick="switchTab('finalTray')">Final Tray by Serial</button>
+        </div>
+      </div>
+
+      <section id="browseTab" class="tab-section active">
+        <div class="panel controls-panel">
+          <div class="panel-heading compact">
+            <div>
+              <p class="eyebrow small">Catalogue Controls</p>
+              <h3>Filter and select items</h3>
+            </div>
+            <p id="gridSummary" class="panel-meta">0 visible items</p>
+          </div>
+          <div class="controls">
+            <select id="filterType" onchange="render()"></select>
+            <select id="filterStatus" onchange="render()">
+              <option value="">All Status</option>
+              <option value="unmarked">Unmarked</option>
+              <option value="marked">Marked</option>
+            </select>
+            <label class="hide-marked-toggle">
+              <input id="hideMarked" type="checkbox" checked onchange="render()">
+              Hide Marked
+            </label>
+          </div>
+        </div>
+
+        <div class="panel selection-panel">
+          <div class="panel-heading compact">
+            <div>
+              <p class="eyebrow small">Selection</p>
+              <h3>Items queued for PDF</h3>
+            </div>
+            <p class="panel-meta">Tap cards below to add or remove pieces</p>
+          </div>
+          <div id="selectedArea" class="selection-grid"></div>
+        </div>
+
+        <div class="panel grid-panel">
+          <div class="grid" id="grid"></div>
+        </div>
+
+        <div class="actions primary-actions">
+          <button class="btn btn-primary" onclick="generateCollage()">Generate Selection PDF</button>
+          <button class="btn btn-secondary" onclick="downloadCollage()">Download PDF</button>
+          <button class="btn btn-secondary" onclick="shareCollage()">Share to WhatsApp</button>
+        </div>
+      </section>
+
+      <section id="finalTrayTab" class="tab-section">
+        <div class="panel final-tray-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow small">Final Tray</p>
+              <h3>Generate a marked PDF from serial codes</h3>
+            </div>
+            <p class="panel-meta">Paste serial numbers separated by comma, semicolon, or a new line.</p>
+          </div>
+
+          <textarea id="serialInput" rows="6" placeholder="Example:
+RING-AB1234
+NECK-XY9876
+BRACELET-1JGZVO"></textarea>
+
+          <div class="actions primary-actions">
+            <button class="btn btn-primary" onclick="generateFinalTrayFromSerials()">Generate Final Tray PDF + Mark in Excel</button>
+            <button class="btn btn-secondary" onclick="downloadCollage()">Download Final Tray PDF</button>
+            <button class="btn btn-secondary" onclick="shareCollage()">Share Final Tray PDF</button>
+          </div>
+          <div id="serialFeedback" class="feedback"></div>
+        </div>
+      </section>
+    </section>
+
+    <aside class="workspace-side">
+      <div class="panel preview-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow small">Live Preview</p>
+            <h3>PDF Preview</h3>
+          </div>
+          <p id="pdfMeta" class="panel-meta">No PDF generated yet</p>
+        </div>
+
+        <div class="pdf-preview-shell">
+          <div id="previewPlaceholder" class="preview-placeholder">
+            <strong>Generate a PDF to preview it here.</strong>
+            <span>The preview updates after selection PDFs and final tray PDFs are created.</span>
+          </div>
+          <iframe id="pdfPreviewFrame" title="Jewellery PDF Preview"></iframe>
+        </div>
+
+        <div class="actions secondary-actions">
+          <button class="btn btn-secondary" onclick="downloadCollage()">Download Current PDF</button>
+          <button class="btn btn-secondary" onclick="shareCollage()">Share Current PDF</button>
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="spinner" class="spinner hidden">
+    <div class="loader"></div>
+    <p>Preparing PDF...</p>
+  </div>
 </div>
 
-<!-- SCRIPT -->
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="script.js?v=20260326-2"></script>
+<script src="pdf-export.js?v=20260326-1"></script>
+<script src="script.js?v=20260326-3"></script>
 
 </body>
 </html>
