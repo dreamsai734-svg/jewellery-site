@@ -176,7 +176,7 @@ async function generateSelectionPdf() {
   showSpinner(true);
 
   try {
-    const selectedChunks = chunkArray(selected, 9);
+    const selectedChunks = chunkArray(selected, 6);
     const generatedBlobs = [];
     const exportItems = [];
 
@@ -237,7 +237,7 @@ async function generateFinalTrayFromSerials() {
   setSerialFeedback("Preparing final tray PDF and updating marked status...", false);
 
   try {
-    const serialChunks = chunkArray(serials, 9);
+    const serialChunks = chunkArray(serials, 6);
     const generatedBlobs = [];
     const allMissing = new Set();
     let updatedCount = 0;
@@ -677,79 +677,112 @@ async function loadImageWithFallback(item) {
 
 async function buildCollageBlob(items) {
   const count = items.length;
-  const columns = count <= 3 ? count : 3;
-  const rows = Math.ceil(count / 3);
-  const cellSize = 320;
-  const labelHeight = 52;
-  const gap = 8;
-  const padding = 8;
+  const columns = count === 1 ? 1 : 2;
+  const rows = Math.ceil(count / columns);
+  const cellSize = 480;
+  const labelHeight = 60;
+  const gap = 16;
+  const padding = 20;
+  const radius = 10;
 
   const canvas = document.createElement("canvas");
   canvas.width = padding * 2 + columns * cellSize + (columns - 1) * gap;
   canvas.height = padding * 2 + rows * (cellSize + labelHeight) + (rows - 1) * gap;
 
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#ffffff";
+
+  ctx.fillStyle = "#f6f1ea";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   const images = await Promise.all(
     items.map(async item => {
       try {
         const loadedImage = await loadImageWithFallback(item);
-        return {
-          id: item["Serial No"],
-          image: loadedImage
-        };
+        return { id: item["Serial No"], image: loadedImage };
       } catch (err) {
         console.warn(err);
-        return {
-          id: item["Serial No"],
-          image: null
-        };
+        return { id: item["Serial No"], image: null };
       }
     })
   );
 
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
   images.forEach((entry, index) => {
-    const col = index % 3;
-    const row = Math.floor(index / 3);
+    const col = index % columns;
+    const row = Math.floor(index / columns);
     const x = padding + col * (cellSize + gap);
     const y = padding + row * (cellSize + labelHeight + gap);
 
-    if (entry.image) {
-      const source = entry.image;
-      const innerPadding = 10;
-      const drawBoxSize = cellSize - innerPadding * 2;
-      const scale = Math.min(drawBoxSize / source.width, drawBoxSize / source.height);
-      const drawWidth = source.width * scale;
-      const drawHeight = source.height * scale;
-      const dx = x + (cellSize - drawWidth) / 2;
-      const dy = y + (cellSize - drawHeight) / 2;
+    ctx.save();
+    ctx.shadowColor = "rgba(0,0,0,0.10)";
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+    roundRect(ctx, x, y, cellSize, cellSize + labelHeight, radius);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.restore();
 
-      ctx.fillStyle = "#ffffff";
+    ctx.save();
+    roundRect(ctx, x, y, cellSize, cellSize, radius);
+    ctx.clip();
+
+    if (entry.image) {
+      const src = entry.image;
+      const innerPad = 14;
+      const box = cellSize - innerPad * 2;
+      const scale = Math.min(box / src.width, box / src.height);
+      const dw = src.width * scale;
+      const dh = src.height * scale;
+      const dx = x + innerPad + (box - dw) / 2;
+      const dy = y + innerPad + (box - dh) / 2;
+      ctx.fillStyle = "#faf7f4";
       ctx.fillRect(x, y, cellSize, cellSize);
-      ctx.drawImage(source, dx, dy, drawWidth, drawHeight);
-      ctx.strokeStyle = "#d6d6d6";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+      ctx.drawImage(src, dx, dy, dw, dh);
     } else {
-      ctx.fillStyle = "#f1f1f1";
+      ctx.fillStyle = "#f0ebe4";
       ctx.fillRect(x, y, cellSize, cellSize);
-      ctx.fillStyle = "#777777";
-      ctx.font = "bold 20px Arial";
+      ctx.fillStyle = "#999999";
+      ctx.font = "bold 18px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("Image unavailable", x + cellSize / 2, y + cellSize / 2);
     }
 
-    ctx.fillStyle = "#111111";
+    ctx.restore();
+
+    ctx.save();
+    roundRect(ctx, x, y, cellSize, cellSize + labelHeight, radius);
+    ctx.clip();
+    ctx.fillStyle = "#1f2431";
     ctx.fillRect(x, y + cellSize, cellSize, labelHeight);
+    ctx.restore();
 
     ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 24px Arial";
+    ctx.font = "bold 22px 'Arial'";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(entry.id, x + cellSize / 2, y + cellSize + labelHeight / 2);
+    ctx.fillText(String(entry.id || ""), x + cellSize / 2, y + cellSize + labelHeight / 2);
+
+    ctx.save();
+    ctx.strokeStyle = "#d8c8b8";
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, x + 0.75, y + 0.75, cellSize - 1.5, cellSize + labelHeight - 1.5, radius);
+    ctx.stroke();
+    ctx.restore();
   });
 
   return new Promise((resolve, reject) => {
@@ -759,7 +792,7 @@ async function buildCollageBlob(items) {
         return;
       }
       resolve(blob);
-    }, "image/png", 0.95);
+    }, "image/png", 0.96);
   });
 }
 
