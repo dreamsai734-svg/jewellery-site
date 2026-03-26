@@ -295,13 +295,6 @@
       throw new Error("PDF library not loaded");
     }
 
-    const totalItems = items.length || pageBlobs.length * 9;
-    const compactMode = totalItems > 300;
-
-    const groupedRows = buildTypeGroupedRows(items);
-    const groupedPagination = paginateGroupedRows(groupedRows, pageHeight, margin);
-    const summaryPages = groupedPagination.pages.length;
-
     const pdf = new jsPdfApi({
       orientation: "portrait",
       unit: "pt",
@@ -311,6 +304,13 @@
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 26;
+
+    const totalItems = items.length || pageBlobs.length * 9;
+    const compactMode = totalItems > 300;
+
+    const groupedRows = buildTypeGroupedRows(items);
+    const groupedPagination = paginateGroupedRows(groupedRows, pageHeight, margin);
+    const summaryPages = groupedPagination.pages.length;
     const totalPages = 1 + pageBlobs.length + summaryPages;
 
     await drawCoverPage(pdf, pageWidth, pageHeight, margin, title, totalPages, pageBlobs[0], totalItems);
