@@ -305,7 +305,7 @@
     const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 26;
 
-    const totalItems = items.length || pageBlobs.length * 9;
+    const totalItems = items.length || pageBlobs.length * 6;
     const compactMode = totalItems > 300;
 
     const groupedRows = buildTypeGroupedRows(items);
@@ -322,28 +322,32 @@
       drawHeader(pdf, pageWidth, margin, title, index + 2, totalPages, "Visual tray preview");
       drawOrnaments(pdf, pageWidth, pageHeight);
 
-      const frameX = margin;
+      const frameX = margin + 4;
       const frameY = margin + 70;
-      const frameWidth = pageWidth - margin * 2;
-      const frameHeight = pageHeight - frameY - margin - 62;
+      const frameWidth = pageWidth - (margin + 4) * 2;
+      const frameHeight = pageHeight - frameY - margin - 52;
 
+      /* outer card */
       pdf.setFillColor(255, 255, 255);
-      pdf.setDrawColor(216, 220, 227);
-      pdf.roundedRect(frameX, frameY, frameWidth, frameHeight, 14, 14, "FD");
+      pdf.setDrawColor(210, 196, 180);
+      pdf.setLineWidth(1.5);
+      pdf.roundedRect(frameX, frameY, frameWidth, frameHeight, 18, 18, "FD");
 
-      pdf.setDrawColor(228, 214, 200);
-      pdf.setLineWidth(1);
-      pdf.roundedRect(frameX + 10, frameY + 10, frameWidth - 20, frameHeight - 56, 10, 10, "S");
+      /* thin inner accent line */
+      pdf.setDrawColor(238, 226, 212);
+      pdf.setLineWidth(0.6);
+      pdf.roundedRect(frameX + 8, frameY + 8, frameWidth - 16, frameHeight - 16, 13, 13, "S");
 
       const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
       const imageProps = pdf.getImageProperties(imageDataUrl);
-      const availableWidth = frameWidth - 34;
-      const availableHeight = frameHeight - 78;
+      const imgPad = 20;
+      const availableWidth = frameWidth - imgPad * 2;
+      const availableHeight = frameHeight - imgPad * 2;
       const scale = Math.min(availableWidth / imageProps.width, availableHeight / imageProps.height);
       const renderWidth = imageProps.width * scale;
       const renderHeight = imageProps.height * scale;
       const imageX = frameX + (frameWidth - renderWidth) / 2;
-      const imageY = frameY + 18 + (availableHeight - renderHeight) / 2;
+      const imageY = frameY + (frameHeight - renderHeight) / 2;
       pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
 
       drawVisualPageDetails(pdf, margin, pageWidth, frameY, frameHeight, index, pageBlobs.length);
