@@ -16,18 +16,6 @@
     });
   }
 
-  function fitTextSize(pdf, text, maxWidth, startSize, minSize) {
-    let size = startSize;
-    while (size > minSize) {
-      pdf.setFontSize(size);
-      if (pdf.getTextWidth(text) <= maxWidth) {
-        return size;
-      }
-      size -= 1;
-    }
-    return minSize;
-  }
-
   function drawPageTexture(pdf, pageWidth, pageHeight) {
     pdf.setFillColor(248, 243, 236);
     pdf.rect(0, 0, pageWidth, pageHeight, "F");
@@ -141,7 +129,7 @@
     pdf.setFontSize(10);
     pdf.setTextColor(96, 103, 116);
     pdf.text(
-      "Use tray pages for product review, then use one-code snapshot pages for clean mobile screenshots.",
+      "Use tray pages for product review and serial reference pages for fast code lookup.",
       margin + 56,
       pageHeight - 72,
       { maxWidth: pageWidth - margin * 2 - 120 }
@@ -165,115 +153,132 @@
     pdf.text("Client-ready catalogue page", pageWidth - margin - 156, badgeY + 18);
   }
 
-  function drawSnapshotCard(pdf, margin, pageWidth, pageHeight, item, index, totalItems) {
-    const cardX = margin + 20;
-    const cardY = margin + 108;
-    const cardWidth = pageWidth - (margin + 20) * 2;
-    const cardHeight = pageHeight - cardY - margin - 54;
-    const serial = String(item["Serial No"] || "").toUpperCase();
-    const spacedSerial = serial.split("").join(" ");
-    const type = String(item["Type"] || "Jewellery");
-    const brand = String(item["Brand Name"] || "Collection");
-
-    pdf.setFillColor(255, 255, 255);
-    pdf.setDrawColor(221, 208, 193);
-    pdf.roundedRect(cardX, cardY, cardWidth, cardHeight, 24, 24, "FD");
-
-    pdf.setFillColor(250, 241, 232);
-    pdf.roundedRect(cardX + 16, cardY + 16, cardWidth - 32, 64, 16, 16, "F");
-    pdf.setTextColor(108, 59, 37);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
-    pdf.text("Mobile Snapshot Serial Card", cardX + 28, cardY + 40);
-    pdf.setTextColor(110, 117, 128);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.text(`Card ${index + 1} of ${totalItems}  |  ${type}  |  ${brand}`, cardX + 28, cardY + 58, {
-      maxWidth: cardWidth - 60
-    });
-
-    const serialBoxY = cardY + 106;
-    const serialBoxHeight = 252;
-    pdf.setFillColor(255, 252, 248);
-    pdf.setDrawColor(214, 194, 175);
-    pdf.roundedRect(cardX + 22, serialBoxY, cardWidth - 44, serialBoxHeight, 20, 20, "FD");
-
-    pdf.setDrawColor(197, 169, 144);
-    pdf.setLineWidth(1);
-    pdf.setLineDashPattern([5, 4], 0);
-    pdf.roundedRect(cardX + 34, serialBoxY + 16, cardWidth - 68, serialBoxHeight - 32, 14, 14, "S");
-    pdf.setLineDashPattern([], 0);
-
-    pdf.setTextColor(26, 32, 48);
-    pdf.setFont("courier", "bold");
-    const maxCodeWidth = cardWidth - 90;
-    const serialSize = fitTextSize(pdf, serial, maxCodeWidth, 52, 28);
-    pdf.setFontSize(serialSize);
-    pdf.text(serial, cardX + cardWidth / 2, serialBoxY + serialBoxHeight / 2 - 12, { align: "center" });
-
-    pdf.setFont("courier", "normal");
-    const assistSize = fitTextSize(pdf, spacedSerial, maxCodeWidth, 22, 12);
-    pdf.setFontSize(assistSize);
-    pdf.setTextColor(77, 86, 101);
-    pdf.text(spacedSerial, cardX + cardWidth / 2, serialBoxY + serialBoxHeight / 2 + 36, { align: "center" });
-
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
-    pdf.setTextColor(130, 105, 85);
-    pdf.text("ONE SERIAL PER SCREENSHOT", cardX + cardWidth / 2, serialBoxY + serialBoxHeight - 16, { align: "center" });
-
-    pdf.setFont("helvetica", "normal");
-    pdf.setTextColor(96, 103, 116);
-    pdf.setFontSize(10);
-    pdf.text("Take one screenshot of this page to capture exactly one serial code.", cardX + 32, serialBoxY + serialBoxHeight + 34, {
-      maxWidth: cardWidth - 64
-    });
-
-    drawGemMotif(pdf, cardX + 46, cardY + cardHeight - 44, 12, [255, 245, 233], [198, 169, 145]);
-    drawGemMotif(pdf, cardX + cardWidth - 46, cardY + cardHeight - 44, 12, [255, 245, 233], [198, 169, 145]);
+  function normalizeTypeLabel(item) {
+    const raw = String((item && item["Type"]) || "").trim();
+    return raw || "Uncategorized";
   }
 
-  function drawCompactModeNoticePage(pdf, pageWidth, pageHeight, margin, totalItems) {
-    drawPageTexture(pdf, pageWidth, pageHeight);
-    drawOrnaments(pdf, pageWidth, pageHeight);
+  function buildTypeGroupedRows(items) {
+    const byType = new Map();
 
-    const boxX = margin + 28;
-    const boxY = margin + 110;
-    const boxW = pageWidth - (margin + 28) * 2;
-    const boxH = pageHeight - boxY - margin - 70;
+    items.forEach(item => {
+      const type = normalizeTypeLabel(item);
+      if (!byType.has(type)) {
+        byType.set(type, []);
+      }
+      byType.get(type).push(item);
+    });
 
-    pdf.setFillColor(255, 255, 255);
-    pdf.setDrawColor(220, 207, 192);
-    pdf.roundedRect(boxX, boxY, boxW, boxH, 22, 22, "FD");
+    const sortedTypes = [...byType.keys()].sort((a, b) => a.localeCompare(b));
+    const rows = [];
 
-    pdf.setTextColor(31, 36, 49);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(24);
-    pdf.text("Large Export Compact Mode", boxX + 26, boxY + 48);
+    sortedTypes.forEach(type => {
+      rows.push({ kind: "section", label: type });
 
-    pdf.setFont("helvetica", "normal");
-    pdf.setTextColor(96, 103, 116);
-    pdf.setFontSize(12);
-    pdf.text(
-      `This PDF contains ${totalItems} items. To keep generation stable and file size practical, one-serial-per-page snapshot cards were skipped automatically.`,
-      boxX + 26,
-      boxY + 82,
-      { maxWidth: boxW - 52 }
-    );
+      const typeItems = byType.get(type).slice().sort((a, b) => {
+        const sa = String((a && a["Serial No"]) || "");
+        const sb = String((b && b["Serial No"]) || "");
+        return sa.localeCompare(sb);
+      });
 
-    pdf.setFillColor(250, 241, 232);
-    pdf.roundedRect(boxX + 22, boxY + 138, boxW - 44, 116, 16, 16, "F");
-    pdf.setFont("helvetica", "bold");
+      typeItems.forEach(item => {
+        rows.push({ kind: "item", item: item });
+      });
+    });
+
+    return rows;
+  }
+
+  function paginateGroupedRows(rows, pageHeight, margin) {
+    const topY = margin + 136;
+    const bottomY = pageHeight - margin - 30;
+    const sectionH = 38;
+    const cardH = 54;
+    const sectionGap = 10;
+    const cardGap = 10;
+
+    const pages = [];
+    let page = [];
+    let y = topY;
+
+    rows.forEach((row, index) => {
+      const isSection = row.kind === "section";
+      const blockH = isSection ? sectionH : cardH;
+      const gap = isSection ? sectionGap : cardGap;
+      const needed = blockH + gap;
+
+      if (y + needed > bottomY && page.length) {
+        pages.push(page);
+        page = [];
+        y = topY;
+      }
+
+      if (isSection && y + sectionH > bottomY && page.length) {
+        pages.push(page);
+        page = [];
+        y = topY;
+      }
+
+      page.push(row);
+      y += needed;
+
+      const nextRow = rows[index + 1];
+      if (row.kind === "section" && !nextRow) {
+        return;
+      }
+    });
+
+    if (page.length) {
+      pages.push(page);
+    }
+
+    return {
+      pages: pages,
+      metrics: {
+        topY: topY,
+        sectionH: sectionH,
+        cardH: cardH,
+        sectionGap: sectionGap,
+        cardGap: cardGap
+      }
+    };
+  }
+
+  function drawSerialSectionHeader(pdf, x, y, width, label) {
+    pdf.setFillColor(247, 236, 226);
+    pdf.setDrawColor(223, 203, 186);
+    pdf.roundedRect(x, y, width, 38, 12, 12, "FD");
+
     pdf.setTextColor(108, 59, 37);
+    pdf.setFont("helvetica", "bold");
     pdf.setFontSize(13);
-    pdf.text("Best practice for 1000+ items", boxX + 40, boxY + 166);
+    pdf.text(label, x + 14, y + 24);
+  }
 
+  function drawSerialItemCard(pdf, x, y, width, height, item, itemNumber) {
+    const serial = String((item && item["Serial No"]) || "");
+    const brand = String((item && item["Brand Name"]) || "Collection");
+
+    pdf.setFillColor(255, 252, 248);
+    pdf.setDrawColor(226, 211, 196);
+    pdf.roundedRect(x, y, width, height, 12, 12, "FD");
+
+    pdf.setFillColor(157, 92, 63);
+    pdf.roundedRect(x + 10, y + 12, 48, 30, 9, 9, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(`#${itemNumber}`, x + 22, y + 31);
+
+    pdf.setTextColor(31, 35, 40);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(13);
+    pdf.text(serial, x + 70, y + 26, { maxWidth: width - 80 });
+
+    pdf.setTextColor(104, 110, 121);
     pdf.setFont("helvetica", "normal");
-    pdf.setTextColor(96, 103, 116);
-    pdf.setFontSize(11);
-    pdf.text("1. Share this compact catalogue PDF.", boxX + 40, boxY + 194);
-    pdf.text("2. Create smaller final-tray PDFs for approved serial groups.", boxX + 40, boxY + 214);
-    pdf.text("3. Use snapshot serial pages only for smaller batches.", boxX + 40, boxY + 234);
+    pdf.setFontSize(9);
+    pdf.text(brand, x + 70, y + 40, { maxWidth: width - 80 });
   }
 
   async function buildPdfBlob(options) {
@@ -293,12 +298,9 @@
     const totalItems = items.length || pageBlobs.length * 9;
     const compactMode = totalItems > 300;
 
-    const summaryColumns = compactMode ? 3 : 2;
-    const summaryRowsPerPage = compactMode ? 15 : 10;
-    const summaryPerPage = summaryColumns * summaryRowsPerPage;
-    const summaryPages = items.length ? Math.ceil(items.length / summaryPerPage) : 0;
-    const snapshotPages = compactMode ? 0 : items.length;
-    const compactNoticePages = compactMode && items.length ? 1 : 0;
+    const groupedRows = buildTypeGroupedRows(items);
+    const groupedPagination = paginateGroupedRows(groupedRows, pageHeight, margin);
+    const summaryPages = groupedPagination.pages.length;
 
     const pdf = new jsPdfApi({
       orientation: "portrait",
@@ -309,7 +311,7 @@
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const margin = 26;
-    const totalPages = 1 + pageBlobs.length + summaryPages + compactNoticePages + snapshotPages;
+    const totalPages = 1 + pageBlobs.length + summaryPages;
 
     await drawCoverPage(pdf, pageWidth, pageHeight, margin, title, totalPages, pageBlobs[0], totalItems);
     drawFooter(pdf, pageWidth, pageHeight, margin);
@@ -329,15 +331,19 @@
       pdf.setDrawColor(216, 220, 227);
       pdf.roundedRect(frameX, frameY, frameWidth, frameHeight, 14, 14, "FD");
 
+      pdf.setDrawColor(228, 214, 200);
+      pdf.setLineWidth(1);
+      pdf.roundedRect(frameX + 10, frameY + 10, frameWidth - 20, frameHeight - 56, 10, 10, "S");
+
       const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
       const imageProps = pdf.getImageProperties(imageDataUrl);
-      const availableWidth = frameWidth - 24;
-      const availableHeight = frameHeight - 24;
+      const availableWidth = frameWidth - 34;
+      const availableHeight = frameHeight - 78;
       const scale = Math.min(availableWidth / imageProps.width, availableHeight / imageProps.height);
       const renderWidth = imageProps.width * scale;
       const renderHeight = imageProps.height * scale;
       const imageX = frameX + (frameWidth - renderWidth) / 2;
-      const imageY = frameY + (frameHeight - renderHeight) / 2;
+      const imageY = frameY + 18 + (availableHeight - renderHeight) / 2;
       pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
 
       drawVisualPageDetails(pdf, margin, pageWidth, frameY, frameHeight, index, pageBlobs.length);
@@ -358,75 +364,35 @@
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(10);
       pdf.setTextColor(96, 103, 116);
-      pdf.text("Use this page for quick phone reading, screenshots, and OCR extraction.", margin, margin + 107);
+      pdf.text("Grouped by type with premium spacing for clean presentation.", margin, margin + 107);
 
-      const chunk = items.slice(summaryIndex * summaryPerPage, (summaryIndex + 1) * summaryPerPage);
-      const columnGap = compactMode ? 12 : 24;
-      const columnWidth = (pageWidth - margin * 2 - columnGap) / summaryColumns;
-      const rowGap = compactMode ? 8 : 12;
-      const startY = margin + 128;
-      const summaryBottom = pageHeight - margin - 36;
-      const availableSummaryHeight = summaryBottom - startY;
-      const cardHeight = Math.max(34, Math.floor((availableSummaryHeight - (summaryRowsPerPage - 1) * rowGap) / summaryRowsPerPage));
+      const rowsForPage = groupedPagination.pages[summaryIndex] || [];
+      const metrics = groupedPagination.metrics;
+      const cardWidth = pageWidth - margin * 2;
+      let y = metrics.topY;
+      let itemNumber = 0;
 
-      chunk.forEach((item, itemIndex) => {
-        const col = itemIndex % summaryColumns;
-        const row = Math.floor(itemIndex / summaryColumns);
-        const x = margin + col * (columnWidth + columnGap);
-        const y = startY + row * (cardHeight + rowGap);
-        const serial = String(item["Serial No"] || "");
-        const type = String(item["Type"] || "Jewellery");
-        const brand = String(item["Brand Name"] || "Collection");
+      for (let pageIdx = 0; pageIdx < summaryIndex; pageIdx++) {
+        const rows = groupedPagination.pages[pageIdx] || [];
+        rows.forEach(r => {
+          if (r.kind === "item") {
+            itemNumber += 1;
+          }
+        });
+      }
 
-        pdf.setFillColor(255, 250, 245);
-        pdf.setDrawColor(224, 210, 196);
-        pdf.roundedRect(x, y, columnWidth, cardHeight, 12, 12, "FD");
-
-        if (!compactMode) {
-          pdf.setFillColor(157, 92, 63);
-          pdf.roundedRect(x + 10, y + 10, 54, 26, 10, 10, "F");
-          pdf.setTextColor(255, 255, 255);
-          pdf.setFont("helvetica", "bold");
-          pdf.setFontSize(11);
-          pdf.text(`#${summaryIndex * summaryPerPage + itemIndex + 1}`, x + 24, y + 27);
+      rowsForPage.forEach(row => {
+        if (row.kind === "section") {
+          drawSerialSectionHeader(pdf, margin, y, cardWidth, row.label);
+          y += metrics.sectionH + metrics.sectionGap;
+          return;
         }
 
-        pdf.setTextColor(31, 35, 40);
-        pdf.setFontSize(compactMode ? 10 : 13);
-        pdf.setFont("helvetica", "bold");
-        const serialX = compactMode ? x + 10 : x + 76;
-        const serialY = compactMode ? y + 18 : y + 22;
-        pdf.text(serial, serialX, serialY, { maxWidth: compactMode ? columnWidth - 16 : columnWidth - 88 });
-
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(compactMode ? 8 : 9);
-        pdf.setTextColor(104, 110, 121);
-        const metaX = compactMode ? x + 10 : x + 76;
-        const metaY = compactMode ? y + 30 : y + 40;
-        pdf.text(`${type} · ${brand}`, metaX, metaY, { maxWidth: compactMode ? columnWidth - 16 : columnWidth - 88 });
+        itemNumber += 1;
+        drawSerialItemCard(pdf, margin, y, cardWidth, metrics.cardH, row.item, itemNumber);
+        y += metrics.cardH + metrics.cardGap;
       });
 
-      drawFooter(pdf, pageWidth, pageHeight, margin);
-    }
-
-    if (compactNoticePages) {
-      pdf.addPage();
-      const pageNumber = 1 + pageBlobs.length + summaryPages + 1;
-      drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, "Compact export notice");
-      drawCompactModeNoticePage(pdf, pageWidth, pageHeight, margin, totalItems);
-      drawFooter(pdf, pageWidth, pageHeight, margin);
-    }
-
-    for (let snapshotIndex = 0; snapshotIndex < items.length; snapshotIndex++) {
-      if (compactMode) {
-        break;
-      }
-      pdf.addPage();
-      drawPageTexture(pdf, pageWidth, pageHeight);
-      const pageNumber = 1 + pageBlobs.length + summaryPages + compactNoticePages + snapshotIndex + 1;
-      drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, "Mobile snapshot serial page");
-      drawOrnaments(pdf, pageWidth, pageHeight);
-      drawSnapshotCard(pdf, margin, pageWidth, pageHeight, items[snapshotIndex], snapshotIndex, items.length);
       drawFooter(pdf, pageWidth, pageHeight, margin);
     }
 
