@@ -1,10 +1,9 @@
 let data = [];
 let selected = [];
 let lastBlob = null;
-let lastCollageUrl = "";
 let collageBlobs = [];
 let lastExportItems = [];
-let lastExportTitle = "Jewellery Tray";
+let lastExportTitle = "Jewellery Catalogue";
 let lastPdfBlob = null;
 let lastPdfUrl = "";
 
@@ -144,7 +143,7 @@ function toggle(id) {
   render();
 }
 
-/* COLLAGE PREVIEW */
+/* SELECTION PREVIEW */
 function renderSelected() {
   let area = document.getElementById("selectedArea");
   const selectedItems = data.filter(d => selected.includes(d["Serial No"]));
@@ -163,11 +162,15 @@ function renderSelected() {
     `).join("");
 }
 
-/* GENERATE COLLAGE */
-async function generateCollage() {
+/* GENERATE SELECTION PDF */
+async function generateSelectionPdf() {
   if (selected.length === 0) {
-    alert("Select items first");
+    alert("Select items to prepare the PDF.");
     return;
+  }
+
+  if (selected.length > 300) {
+    alert("Large export detected. Compact PDF mode will be used to keep generation stable for high item counts.");
   }
 
   showSpinner(true);
@@ -185,7 +188,7 @@ async function generateCollage() {
       try {
         collageBlob = await buildCollageBlobOnServer(chunkIds);
       } catch (serverErr) {
-        console.warn("Server collage failed for chunk, using browser fallback", serverErr);
+        console.warn("Server page render failed for chunk, using browser fallback", serverErr);
         collageBlob = await buildCollageBlob(selectedItems);
       }
 
@@ -194,18 +197,14 @@ async function generateCollage() {
     }
 
     if (generatedBlobs.length === 0) {
-      throw new Error("Unable to generate collage");
+      throw new Error("Unable to prepare the PDF pages");
     }
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
     lastExportItems = exportItems;
-    lastExportTitle = "Jewellery Selection";
+    lastExportTitle = "Client Catalogue";
     lastPdfBlob = null;
-
-    if (lastCollageUrl) {
-      URL.revokeObjectURL(lastCollageUrl);
-    }
 
     await rebuildPdfPreview();
 
@@ -215,7 +214,7 @@ async function generateCollage() {
 
   } catch (err) {
     console.error(err);
-    alert("Error generating collage. Please try different images.");
+    alert("Error preparing the PDF. Please try different images.");
   } finally {
     showSpinner(false);
   }
@@ -230,8 +229,12 @@ async function generateFinalTrayFromSerials() {
     return;
   }
 
+  if (serials.length > 300) {
+    setSerialFeedback("Large export detected. Compact PDF mode will be used for better stability.", false);
+  }
+
   showSpinner(true);
-  setSerialFeedback("Generating final tray and updating marked status...", false);
+  setSerialFeedback("Preparing final tray PDF and updating marked status...", false);
 
   try {
     const serialChunks = chunkArray(serials, 9);
@@ -244,7 +247,7 @@ async function generateFinalTrayFromSerials() {
       const result = await buildFinalTrayAndMarkOnServer(serialChunk);
 
       if (!result.ok || !result.base64) {
-        throw new Error(result.error || "Unable to generate final tray");
+        throw new Error(result.error || "Unable to prepare the final tray PDF");
       }
 
       generatedBlobs.push(base64ToBlob(result.base64, result.mimeType || "image/png"));
@@ -253,18 +256,14 @@ async function generateFinalTrayFromSerials() {
     }
 
     if (!generatedBlobs.length) {
-      throw new Error("Unable to generate final tray");
+      throw new Error("Unable to prepare the final tray PDF");
     }
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
     lastExportItems = exportItems;
-    lastExportTitle = "Final Tray";
+    lastExportTitle = "Final Tray Catalogue";
     lastPdfBlob = null;
-
-    if (lastCollageUrl) {
-      URL.revokeObjectURL(lastCollageUrl);
-    }
 
     await rebuildPdfPreview();
 
@@ -272,16 +271,16 @@ async function generateFinalTrayFromSerials() {
 
     const missing = [...allMissing];
     const missingText = missing.length ? ` Missing: ${missing.join(", ")}.` : "";
-    const collageText = collageBlobs.length > 1
-      ? ` ${collageBlobs.length} collage files generated.`
+    const pageText = collageBlobs.length > 1
+      ? ` ${collageBlobs.length} PDF pages prepared.`
       : "";
 
-    setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${collageText}`, false);
-    alert(`Final tray generated for all entered serials. ${updatedCount} items marked in Excel.${collageText}`);
+    setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${pageText}`, false);
+    alert(`Final tray PDF prepared for all entered serials. ${updatedCount} items marked in Excel.${pageText}`);
   } catch (err) {
     console.error(err);
-    setSerialFeedback(err.message || "Failed to generate final tray", true);
-    alert("Error generating final tray. Please check serial codes and try again.");
+    setSerialFeedback(err.message || "Failed to prepare the final tray PDF", true);
+    alert("Error preparing the final tray PDF. Please check serial codes and try again.");
   } finally {
     showSpinner(false);
   }
@@ -461,25 +460,35 @@ async function ensurePdfBlob() {
 }
 
 /* DOWNLOAD */
-async function downloadCollage() {
+function buildPdfFileName() {
+  const title = String(lastExportTitle || "Jewellery PDF")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return `${title || "jewellery-pdf"}.pdf`;
+}
+
+async function downloadCurrentPdf() {
   if (!collageBlobs.length) {
-    alert("Generate collage first");
+    alert("Generate a PDF first.");
     return;
   }
 
   try {
     const pdfBlob = await ensurePdfBlob();
-    triggerBlobDownload(pdfBlob, "jewellery-collage.pdf");
+    triggerBlobDownload(pdfBlob, buildPdfFileName());
   } catch (err) {
     console.error(err);
     alert("Unable to build PDF. Please try again.");
   }
 }
 
-/* ✅ SHARE (FIXED - NO BLOBS SENT AS TEXT) */
-async function shareCollage() {
+/* SHARE CURRENT PDF */
+async function shareCurrentPdf() {
   if (!collageBlobs.length) {
-    alert("Generate collage first");
+    alert("Generate a PDF first.");
     return;
   }
 
@@ -493,14 +502,15 @@ async function shareCollage() {
     return;
   }
 
-  const files = [new File([pdfBlob], "jewellery-collage.pdf", { type: "application/pdf" })];
+  const fileName = buildPdfFileName();
+  const files = [new File([pdfBlob], fileName, { type: "application/pdf" })];
 
   if (navigator.canShare && navigator.canShare({ files })) {
     try {
       await navigator.share({
         files,
-        title: "Jewellery PDF",
-        text: "Jewellery final tray PDF"
+        title: lastExportTitle || "Jewellery PDF",
+        text: `${lastExportTitle || "Jewellery PDF"} ready to share.`
       });
     } catch (err) {
       console.log(err);
@@ -509,9 +519,9 @@ async function shareCollage() {
       }
     }
   } else {
-    triggerBlobDownload(pdfBlob, "jewellery-collage.pdf");
+    triggerBlobDownload(pdfBlob, fileName);
 
-    const whatsappText = encodeURIComponent("PDF downloaded. Please attach the jewellery PDF here.");
+    const whatsappText = encodeURIComponent("PDF downloaded. Please attach the jewellery PDF in this chat.");
     window.open(`https://web.whatsapp.com/send?text=${whatsappText}`, "_blank");
     alert("This browser cannot directly share PDF files to WhatsApp. The PDF has been downloaded. Attach it in WhatsApp.");
   }
