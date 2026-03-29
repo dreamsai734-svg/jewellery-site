@@ -679,15 +679,21 @@ async function buildCollageBlob(items) {
   const count = items.length;
   const columns = count === 1 ? 1 : 2;
   const rows = Math.ceil(count / columns);
-  const cellSize = 480;
-  const labelHeight = 60;
-  const gap = 16;
-  const padding = 20;
+
+  /* Fixed A4-ratio canvas (1240×1754 ≈ 150 dpi) so the image fills
+     the PDF page with zero whitespace on any side. */
+  const canvasW = 1240;
+  const canvasH = 1754;
+  const padding = 28;
+  const gap = 20;
+  const labelHeight = 54;
+  const cellW = Math.floor((canvasW - padding * 2 - (columns - 1) * gap) / columns);
+  const cellH = Math.floor((canvasH - padding * 2 - (rows - 1) * gap) / rows) - labelHeight;
   const radius = 10;
 
   const canvas = document.createElement("canvas");
-  canvas.width = padding * 2 + columns * cellSize + (columns - 1) * gap;
-  canvas.height = padding * 2 + rows * (cellSize + labelHeight) + (rows - 1) * gap;
+  canvas.width = canvasW;
+  canvas.height = canvasH;
 
   const ctx = canvas.getContext("2d");
 
@@ -723,64 +729,65 @@ async function buildCollageBlob(items) {
   images.forEach((entry, index) => {
     const col = index % columns;
     const row = Math.floor(index / columns);
-    const x = padding + col * (cellSize + gap);
-    const y = padding + row * (cellSize + labelHeight + gap);
+    const x = padding + col * (cellW + gap);
+    const y = padding + row * (cellH + labelHeight + gap);
 
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.10)";
     ctx.shadowBlur = 14;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 4;
-    roundRect(ctx, x, y, cellSize, cellSize + labelHeight, radius);
+    roundRect(ctx, x, y, cellW, cellH + labelHeight, radius);
     ctx.fillStyle = "#ffffff";
     ctx.fill();
     ctx.restore();
 
     ctx.save();
-    roundRect(ctx, x, y, cellSize, cellSize, radius);
+    roundRect(ctx, x, y, cellW, cellH, radius);
     ctx.clip();
 
     if (entry.image) {
       const src = entry.image;
       const innerPad = 14;
-      const box = cellSize - innerPad * 2;
-      const scale = Math.min(box / src.width, box / src.height);
+      const boxW = cellW - innerPad * 2;
+      const boxH = cellH - innerPad * 2;
+      const scale = Math.min(boxW / src.width, boxH / src.height);
       const dw = src.width * scale;
       const dh = src.height * scale;
-      const dx = x + innerPad + (box - dw) / 2;
-      const dy = y + innerPad + (box - dh) / 2;
+      const dx = x + innerPad + (boxW - dw) / 2;
+      const dy = y + innerPad + (boxH - dh) / 2;
       ctx.fillStyle = "#faf7f4";
-      ctx.fillRect(x, y, cellSize, cellSize);
+      ctx.fillRect(x, y, cellW, cellH);
       ctx.drawImage(src, dx, dy, dw, dh);
     } else {
       ctx.fillStyle = "#f0ebe4";
-      ctx.fillRect(x, y, cellSize, cellSize);
+      ctx.fillRect(x, y, cellW, cellH);
       ctx.fillStyle = "#999999";
       ctx.font = "bold 18px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("Image unavailable", x + cellSize / 2, y + cellSize / 2);
+      ctx.fillText("Image unavailable", x + cellW / 2, y + cellH / 2);
     }
 
     ctx.restore();
 
     ctx.save();
-    roundRect(ctx, x, y, cellSize, cellSize + labelHeight, radius);
+    roundRect(ctx, x, y, cellW, cellH + labelHeight, radius);
     ctx.clip();
     ctx.fillStyle = "#1f2431";
-    ctx.fillRect(x, y + cellSize, cellSize, labelHeight);
+    ctx.fillRect(x, y + cellH, cellW, labelHeight);
     ctx.restore();
 
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 22px 'Arial'";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(String(entry.id || ""), x + cellSize / 2, y + cellSize + labelHeight / 2);
+    ctx.fillText(String(entry.id || ""), x + cellW / 2, y + cellH + labelHeight / 2);
 
     ctx.save();
     ctx.strokeStyle = "#d8c8b8";
     ctx.lineWidth = 1.5;
-    roundRect(ctx, x + 0.75, y + 0.75, cellSize - 1.5, cellSize + labelHeight - 1.5, radius);
+    roundRect(ctx, x + 0.75, y + 0.75, cellW - 1.5, cellH + labelHeight - 1.5, radius);
     ctx.stroke();
     ctx.restore();
   });
