@@ -318,40 +318,36 @@
 
     for (let index = 0; index < pageBlobs.length; index++) {
       pdf.addPage();
-      drawPageTexture(pdf, pageWidth, pageHeight);
-      drawHeader(pdf, pageWidth, margin, title, index + 2, totalPages, "Visual tray preview");
-      drawOrnaments(pdf, pageWidth, pageHeight);
 
-      const frameX = margin + 4;
-      const frameY = margin + 70;
-      const frameWidth = pageWidth - (margin + 4) * 2;
-      const frameHeight = pageHeight - frameY - margin - 52;
+      /* full-page cream background */
+      pdf.setFillColor(250, 247, 243);
+      pdf.rect(0, 0, pageWidth, pageHeight, "F");
 
-      /* outer card */
-      pdf.setFillColor(255, 255, 255);
+      /* thin outer border */
       pdf.setDrawColor(210, 196, 180);
       pdf.setLineWidth(1.5);
-      pdf.roundedRect(frameX, frameY, frameWidth, frameHeight, 18, 18, "FD");
+      const brd = 6;
+      pdf.roundedRect(brd, brd, pageWidth - brd * 2, pageHeight - brd * 2, 6, 6, "S");
 
-      /* thin inner accent line */
-      pdf.setDrawColor(238, 226, 212);
-      pdf.setLineWidth(0.6);
-      pdf.roundedRect(frameX + 8, frameY + 8, frameWidth - 16, frameHeight - 16, 13, 13, "S");
-
+      /* image fills the whole page with only a small inset */
+      const imgInset = 10;
       const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
       const imageProps = pdf.getImageProperties(imageDataUrl);
-      const imgPad = 20;
-      const availableWidth = frameWidth - imgPad * 2;
-      const availableHeight = frameHeight - imgPad * 2;
-      const scale = Math.min(availableWidth / imageProps.width, availableHeight / imageProps.height);
+      const availW = pageWidth - imgInset * 2;
+      const availH = pageHeight - imgInset * 2;
+      const scale = Math.min(availW / imageProps.width, availH / imageProps.height);
       const renderWidth = imageProps.width * scale;
       const renderHeight = imageProps.height * scale;
-      const imageX = frameX + (frameWidth - renderWidth) / 2;
-      const imageY = frameY + (frameHeight - renderHeight) / 2;
+      const imageX = (pageWidth - renderWidth) / 2;
+      const imageY = (pageHeight - renderHeight) / 2;
       pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
 
-      drawVisualPageDetails(pdf, margin, pageWidth, frameY, frameHeight, index, pageBlobs.length);
-      drawFooter(pdf, pageWidth, pageHeight, margin);
+      /* small page-number badge bottom-right */
+      const badgeLabel = `${index + 1} / ${pageBlobs.length}`;
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(160, 148, 136);
+      pdf.text(badgeLabel, pageWidth - brd - 4, pageHeight - brd - 4, { align: "right" });
     }
 
     for (let summaryIndex = 0; summaryIndex < summaryPages; summaryIndex++) {
