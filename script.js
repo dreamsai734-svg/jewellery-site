@@ -677,13 +677,13 @@ async function loadImageWithFallback(item) {
 
 async function buildCollageBlob(items) {
   /* Always render a fixed 2×3 grid (6 items max per page).
-     2 columns × 3 rows = larger images that fill A4 page better. */
+     Maximizes section size: 2 columns × 3 rows on A4 page. */
   const columns = 2;
   const rows = 3;
   const canvasW = 1240;
   const canvasH = 1754;
-  const padding = 28;
-  const gap = 20;
+  const padding = 12;  /* reduced from 28 to maximize 6 sections */
+  const gap = 12;      /* reduced from 20 to maximize 6 sections */
   const labelHeight = 54;
   const cellW = Math.floor((canvasW - padding * 2 - (columns - 1) * gap) / columns);
   const cellH = Math.floor((canvasH - padding * 2 - (rows - 1) * gap) / rows) - labelHeight;
