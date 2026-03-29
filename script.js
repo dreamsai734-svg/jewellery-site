@@ -676,13 +676,10 @@ async function loadImageWithFallback(item) {
 }
 
 async function buildCollageBlob(items) {
-  const count = items.length;
-  const columns = count === 1 ? 1 : 3;
-  const rows = Math.ceil(count / columns);
-
-  /* Fixed A4-ratio canvas (1240×1754 ≈ 150 dpi) for 3-column layout:
-     each cell is much larger (381×785 px image area) to fill the page
-     with minimal whitespace. */
+  /* Always render a fixed 2×3 grid (6 items max per page).
+     2 columns × 3 rows = larger images that fill A4 page better. */
+  const columns = 2;
+  const rows = 3;
   const canvasW = 1240;
   const canvasH = 1754;
   const padding = 28;
@@ -727,11 +724,13 @@ async function buildCollageBlob(items) {
     ctx.closePath();
   }
 
-  images.forEach((entry, index) => {
+  /* Render all 6 cells (3×2 grid), leaving empty cells for unused items */
+  for (let index = 0; index < 6; index++) {
     const col = index % columns;
     const row = Math.floor(index / columns);
     const x = padding + col * (cellW + gap);
     const y = padding + row * (cellH + labelHeight + gap);
+    const entry = images[index];
 
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.10)";
@@ -747,7 +746,7 @@ async function buildCollageBlob(items) {
     roundRect(ctx, x, y, cellW, cellH, radius);
     ctx.clip();
 
-    if (entry.image) {
+    if (entry && entry.image) {
       const src = entry.image;
       const innerPad = 14;
       const boxW = cellW - innerPad * 2;
@@ -763,11 +762,13 @@ async function buildCollageBlob(items) {
     } else {
       ctx.fillStyle = "#f0ebe4";
       ctx.fillRect(x, y, cellW, cellH);
-      ctx.fillStyle = "#999999";
-      ctx.font = "bold 18px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Image unavailable", x + cellW / 2, y + cellH / 2);
+      if (entry) {
+        ctx.fillStyle = "#999999";
+        ctx.font = "bold 18px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Image unavailable", x + cellW / 2, y + cellH / 2);
+      }
     }
 
     ctx.restore();
@@ -779,11 +780,13 @@ async function buildCollageBlob(items) {
     ctx.fillRect(x, y + cellH, cellW, labelHeight);
     ctx.restore();
 
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 22px 'Arial'";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(String(entry.id || ""), x + cellW / 2, y + cellH + labelHeight / 2);
+    if (entry) {
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 22px 'Arial'";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + cellH + labelHeight / 2);
+    }
 
     ctx.save();
     ctx.strokeStyle = "#d8c8b8";
@@ -791,7 +794,7 @@ async function buildCollageBlob(items) {
     roundRect(ctx, x + 0.75, y + 0.75, cellW - 1.5, cellH + labelHeight - 1.5, radius);
     ctx.stroke();
     ctx.restore();
-  });
+  }
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
