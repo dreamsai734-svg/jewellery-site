@@ -682,9 +682,10 @@ async function buildCollageBlob(items) {
   const rows = 3;
   const canvasW = 1240;
   const canvasH = 1754;
-  const padding = 12;  /* reduced from 28 to maximize 6 sections */
-  const gap = 12;      /* reduced from 20 to maximize 6 sections */
-  const labelHeight = 54;
+  const padding = 6;
+const gap = 6;
+const labelHeight = 40;
+
   const cellW = Math.floor((canvasW - padding * 2 - (columns - 1) * gap) / columns);
   const cellH = Math.floor((canvasH - padding * 2 - (rows - 1) * gap) / rows) - labelHeight;
   const radius = 10;
@@ -751,14 +752,14 @@ async function buildCollageBlob(items) {
       const innerPad = 14;
       const boxW = cellW - innerPad * 2;
       const boxH = cellH - innerPad * 2;
-      const scale = Math.min(boxW / src.width, boxH / src.height);
-      const dw = src.width * scale;
-      const dh = src.height * scale;
-      const dx = x + innerPad + (boxW - dw) / 2;
-      const dy = y + innerPad + (boxH - dh) / 2;
-      ctx.fillStyle = "#faf7f4";
-      ctx.fillRect(x, y, cellW, cellH);
-      ctx.drawImage(src, dx, dy, dw, dh);
+      const scale = Math.max(boxW / src.width, boxH / src.height);
+const dw = src.width * scale;
+const dh = src.height * scale;
+
+const dx = x + innerPad + (boxW - dw) / 2;
+const dy = y + innerPad + (boxH - dh) / 2;
+
+ctx.drawImage(src, dx, dy, dw, dh);
     } else {
       ctx.fillStyle = "#f0ebe4";
       ctx.fillRect(x, y, cellW, cellH);
