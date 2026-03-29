@@ -329,18 +329,12 @@
       const brd = 6;
       pdf.roundedRect(brd, brd, pageWidth - brd * 2, pageHeight - brd * 2, 6, 6, "S");
 
-      /* image fills the whole page with only a small inset */
-      const imgInset = 10;
+      /* image fills the page with minimal inset */
+      const imgInset = 4;
       const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
-      const imageProps = pdf.getImageProperties(imageDataUrl);
-      const availW = pageWidth - imgInset * 2;
-      const availH = pageHeight - imgInset * 2;
-      const scale = Math.min(availW / imageProps.width, availH / imageProps.height);
-      const renderWidth = imageProps.width * scale;
-      const renderHeight = imageProps.height * scale;
-      const imageX = (pageWidth - renderWidth) / 2;
-      const imageY = (pageHeight - renderHeight) / 2;
-      pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
+      const imgWidth = pageWidth - imgInset * 2;
+      const imgHeight = pageHeight - imgInset * 2;
+      pdf.addImage(imageDataUrl, "PNG", imgInset, imgInset, imgWidth, imgHeight, undefined, "FAST");
 
       /* small page-number badge bottom-right */
       const badgeLabel = `${index + 1} / ${pageBlobs.length}`;
