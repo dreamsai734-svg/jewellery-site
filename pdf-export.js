@@ -319,29 +319,16 @@
     for (let index = 0; index < pageBlobs.length; index++) {
       pdf.addPage();
 
-      /* full-page cream background */
-      pdf.setFillColor(250, 247, 243);
-      pdf.rect(0, 0, pageWidth, pageHeight, "F");
-
-      /* thin outer border */
-      pdf.setDrawColor(210, 196, 180);
-      pdf.setLineWidth(1.5);
-      const brd = 6;
-      pdf.roundedRect(brd, brd, pageWidth - brd * 2, pageHeight - brd * 2, 6, 6, "S");
-
-      /* image fills the page with minimal inset */
-      const imgInset = 4;
+      /* fill entire page with 6-section grid image (no inset margin) */
       const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
-      const imgWidth = pageWidth - imgInset * 2;
-      const imgHeight = pageHeight - imgInset * 2;
-      pdf.addImage(imageDataUrl, "PNG", imgInset, imgInset, imgWidth, imgHeight, undefined, "FAST");
+      pdf.addImage(imageDataUrl, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
 
       /* small page-number badge bottom-right */
       const badgeLabel = `${index + 1} / ${pageBlobs.length}`;
       pdf.setFontSize(8);
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(160, 148, 136);
-      pdf.text(badgeLabel, pageWidth - brd - 4, pageHeight - brd - 4, { align: "right" });
+      pdf.text(badgeLabel, pageWidth - 8, pageHeight - 8, { align: "right" });
     }
 
     for (let summaryIndex = 0; summaryIndex < summaryPages; summaryIndex++) {
