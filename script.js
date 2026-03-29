@@ -677,11 +677,12 @@ async function loadImageWithFallback(item) {
 
 async function buildCollageBlob(items) {
   const count = items.length;
-  const columns = count === 1 ? 1 : 2;
+  const columns = count === 1 ? 1 : 3;
   const rows = Math.ceil(count / columns);
 
-  /* Fixed A4-ratio canvas (1240×1754 ≈ 150 dpi) so the image fills
-     the PDF page with zero whitespace on any side. */
+  /* Fixed A4-ratio canvas (1240×1754 ≈ 150 dpi) for 3-column layout:
+     each cell is much larger (381×785 px image area) to fill the page
+     with minimal whitespace. */
   const canvasW = 1240;
   const canvasH = 1754;
   const padding = 28;
