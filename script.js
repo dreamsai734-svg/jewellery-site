@@ -693,6 +693,8 @@ async function buildCollageBlob(items) {
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
+  canvas.width = W;
+  canvas.height = H;
   const ctx = canvas.getContext("2d");
 
   ctx.fillStyle = "#ffffff";
@@ -710,11 +712,10 @@ async function buildCollageBlob(items) {
   );
 
   for (let index = 0; index < 6; index++) {
-    const col = index % COLS;
-    const row = Math.floor(index / COLS);
-    const x = col * cellW;
-    const y = row * cellH;
-    const imgH = cellH - LABEL_H;
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    const x = padding + col * (cellW + gap);
+    const y = padding + row * (cellH + labelHeight + gap);
     const entry = images[index];
 
     /* — Image area — */
@@ -725,20 +726,23 @@ async function buildCollageBlob(items) {
 
     if (entry && entry.image) {
       const src = entry.image;
-      const scale = Math.min(cellW / src.width, imgH / src.height);
-      const dw = src.width * scale;
-      const dh = src.height * scale;
-      const dx = x + (cellW - dw) / 2;
-      const dy = y + (imgH - dh) / 2;
-      ctx.fillStyle = "#f8f8f8";
-      ctx.fillRect(x, y, cellW, imgH);
-      ctx.drawImage(src, dx, dy, dw, dh);
+      const innerPad = 14;
+      const boxW = cellW - innerPad * 2;
+      const boxH = cellH - innerPad * 2;
+      const scale = Math.max(boxW / src.width, boxH / src.height);
+const dw = src.width * scale;
+const dh = src.height * scale;
+
+const dx = x + innerPad + (boxW - dw) / 2;
+const dy = y + innerPad + (boxH - dh) / 2;
+
+ctx.drawImage(src, dx, dy, dw, dh);
     } else {
-      ctx.fillStyle = "#eeeeee";
-      ctx.fillRect(x, y, cellW, imgH);
+      ctx.fillStyle = "#f0ebe4";
+      ctx.fillRect(x, y, cellW, cellH);
       if (entry) {
         ctx.fillStyle = "#999999";
-        ctx.font = "bold 16px Arial";
+        ctx.font = "bold 18px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("Image unavailable", x + cellW / 2, y + imgH / 2);
@@ -746,26 +750,28 @@ async function buildCollageBlob(items) {
     }
     ctx.restore();
 
-    /* — Serial label bar — */
-    ctx.fillStyle = "#1a1f2e";
-    ctx.fillRect(x, y + imgH, cellW, LABEL_H);
+    ctx.save();
+    roundRect(ctx, x, y, cellW, cellH + labelHeight, radius);
+    ctx.clip();
+    ctx.fillStyle = "#1f2431";
+    ctx.fillRect(x, y + cellH, cellW, labelHeight);
+    ctx.restore();
+
     if (entry) {
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 18px Arial";
+      ctx.font = "bold 22px 'Arial'";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + LABEL_H / 2);
+      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + cellH + labelHeight / 2);
     }
-  }
 
-  /* — Grid dividers (drawn last so they sit on top) — */
-  ctx.strokeStyle = DIVIDER_COLOR;
-  ctx.lineWidth = 1;
-  /* vertical centre */
-  ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
-  /* horizontal at 1/3 and 2/3 */
-  ctx.beginPath(); ctx.moveTo(0, H / 3); ctx.lineTo(W, H / 3); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, H * 2 / 3); ctx.lineTo(W, H * 2 / 3); ctx.stroke();
+    ctx.save();
+    ctx.strokeStyle = "#d8c8b8";
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, x + 0.75, y + 0.75, cellW - 1.5, cellH + labelHeight - 1.5, radius);
+    ctx.stroke();
+    ctx.restore();
+  }
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
