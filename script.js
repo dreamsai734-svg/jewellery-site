@@ -169,6 +169,10 @@ async function generateSelectionPdf() {
     return;
   }
 
+  if (selected.length > 300) {
+    alert("Large export detected. Compact PDF mode will be used to keep generation stable for high item counts.");
+  }
+
   showSpinner(true);
 
   try {
@@ -177,11 +181,18 @@ async function generateSelectionPdf() {
     const exportItems = [];
 
     for (const chunkIds of selectedChunks) {
+      let collageBlob;
       const selectedItems = data.filter(d => chunkIds.includes(d["Serial No"]));
       exportItems.push(...selectedItems);
 
-      /* Always build via browser canvas so we control the 2-col × 3-row layout */
-      const collageBlob = await buildCollageBlob(selectedItems);
+      try {
+        collageBlob = await buildCollageBlobOnServer(chunkIds);
+      } catch (serverErr) {
+        console.warn("Server page render failed for chunk, using browser fallback", serverErr);
+        collageBlob = await buildCollageBlob(selectedItems);
+      }
+
+      collageBlob = await trimOuterWhitespaceOnly(collageBlob);
       generatedBlobs.push(collageBlob);
     }
 
@@ -196,6 +207,10 @@ async function generateSelectionPdf() {
     lastPdfBlob = null;
 
     await rebuildPdfPreview();
+
+    if (collageBlobs.length > 1) {
+      alert(`${collageBlobs.length} PDF pages prepared. Preview updated.`);
+    }
 
   } catch (err) {
     console.error(err);
@@ -214,6 +229,10 @@ async function generateFinalTrayFromSerials() {
     return;
   }
 
+  if (serials.length > 300) {
+    setSerialFeedback("Large export detected. Compact PDF mode will be used for better stability.", false);
+  }
+
   showSpinner(true);
   setSerialFeedback("Preparing final tray PDF and updating marked status...", false);
 
@@ -225,20 +244,15 @@ async function generateFinalTrayFromSerials() {
     const exportItems = resolveItemsBySerials(serials);
 
     for (const serialChunk of serialChunks) {
-      /* Call server only to mark items in Excel — ignore its collage image */
       const result = await buildFinalTrayAndMarkOnServer(serialChunk);
 
-      if (!result.ok) {
-        throw new Error(result.error || "Unable to mark items in Excel");
+      if (!result.ok || !result.base64) {
+        throw new Error(result.error || "Unable to prepare the final tray PDF");
       }
 
+      generatedBlobs.push(base64ToBlob(result.base64, result.mimeType || "image/png"));
       updatedCount += Number(result.updatedCount || 0);
       (result.missingSerials || []).forEach(s => allMissing.add(String(s)));
-
-      /* Build collage via browser canvas so layout matches 2-col × 3-row */
-      const chunkItems = resolveItemsBySerials(serialChunk);
-      const collageBlob = await buildCollageBlob(chunkItems);
-      generatedBlobs.push(collageBlob);
     }
 
     if (!generatedBlobs.length) {
@@ -260,17 +274,6 @@ async function generateFinalTrayFromSerials() {
     const pageText = collageBlobs.length > 1
       ? ` ${collageBlobs.length} PDF pages prepared.`
       : "";
-
-    setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${pageText}`, false);
-    alert(`Final tray PDF prepared. ${updatedCount} items marked in Excel.${pageText}`);
-  } catch (err) {
-    console.error(err);
-    setSerialFeedback(err.message || "Failed to prepare the final tray PDF", true);
-    alert("Error preparing the final tray PDF. Please check serial codes and try again.");
-  } finally {
-    showSpinner(false);
-  }
-}
 
     setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${pageText}`, false);
     alert(`Final tray PDF prepared for all entered serials. ${updatedCount} items marked in Excel.${pageText}`);
@@ -674,28 +677,25 @@ async function loadImageWithFallback(item) {
 
 async function buildCollageBlob(items) {
   /* A4 canvas divided into 6 equal sections: 3 rows × 2 columns.
-     Reading order: 1=top-left, 2=top-right,
-                    3=mid-left, 4=mid-right,
-                    5=bot-left, 6=bot-right */
+     Zero outer padding, zero gaps — every pixel of page space is used.
+     Reading order: 1=top-left, 2=top-right, 3=mid-left, 4=mid-right,
+                    5=bot-left,  6=bot-right */
   const COLS = 2;
   const ROWS = 3;
-  const W = 1240;             /* divisible by 2 for clean column edges */
-  const H = 1755;             /* divisible by 3 for clean row edges */
-  const LABEL_H = 48;         /* serial label strip at bottom of each cell */
-  const ACCENT_H = 4;         /* thin accent line above label bar */
-  const DIVIDER_COLOR = "#d4c9bb";
-  const BACKGROUND = "#faf7f2";
+  const W = 1240;
+  const H = 1754;
+  const LABEL_H = 36;          /* serial label strip at bottom of each cell */
+  const DIVIDER_COLOR = "#cccccc";
 
-  const cellW = W / COLS;     /* 620 px */
-  const cellH = H / ROWS;     /* 585 px */
+  const cellW = W / COLS;       /* 620 px */
+  const cellH = H / ROWS;       /* ~584.67 px */
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  /* warm cream background */
-  ctx.fillStyle = BACKGROUND;
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
 
   const images = await Promise.all(
@@ -714,7 +714,7 @@ async function buildCollageBlob(items) {
     const row = Math.floor(index / COLS);
     const x = col * cellW;
     const y = row * cellH;
-    const imgH = cellH - LABEL_H - ACCENT_H;
+    const imgH = cellH - LABEL_H;
     const entry = images[index];
 
     /* — Image area — */
@@ -730,15 +730,15 @@ async function buildCollageBlob(items) {
       const dh = src.height * scale;
       const dx = x + (cellW - dw) / 2;
       const dy = y + (imgH - dh) / 2;
-      ctx.fillStyle = "#f5f0e9";
+      ctx.fillStyle = "#f8f8f8";
       ctx.fillRect(x, y, cellW, imgH);
       ctx.drawImage(src, dx, dy, dw, dh);
     } else {
-      ctx.fillStyle = "#ede7df";
+      ctx.fillStyle = "#eeeeee";
       ctx.fillRect(x, y, cellW, imgH);
       if (entry) {
-        ctx.fillStyle = "#a08060";
-        ctx.font = "bold 20px Georgia, serif";
+        ctx.fillStyle = "#999999";
+        ctx.font = "bold 16px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("Image unavailable", x + cellW / 2, y + imgH / 2);
@@ -746,28 +746,24 @@ async function buildCollageBlob(items) {
     }
     ctx.restore();
 
-    /* — Accent line above label — */
-    ctx.fillStyle = "#9d5c3f";
-    ctx.fillRect(x, y + imgH, cellW, ACCENT_H);
-
     /* — Serial label bar — */
-    ctx.fillStyle = "#1e2433";
-    ctx.fillRect(x, y + imgH + ACCENT_H, cellW, LABEL_H);
+    ctx.fillStyle = "#1a1f2e";
+    ctx.fillRect(x, y + imgH, cellW, LABEL_H);
     if (entry) {
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 22px Arial, sans-serif";
+      ctx.font = "bold 18px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + ACCENT_H + LABEL_H / 2);
+      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + LABEL_H / 2);
     }
   }
 
-  /* — Grid dividers (drawn last) — */
+  /* — Grid dividers (drawn last so they sit on top) — */
   ctx.strokeStyle = DIVIDER_COLOR;
-  ctx.lineWidth = 1.5;
-  /* 1 vertical at centre */
+  ctx.lineWidth = 1;
+  /* vertical centre */
   ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
-  /* 2 horizontals at 1/3 and 2/3 */
+  /* horizontal at 1/3 and 2/3 */
   ctx.beginPath(); ctx.moveTo(0, H / 3); ctx.lineTo(W, H / 3); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(0, H * 2 / 3); ctx.lineTo(W, H * 2 / 3); ctx.stroke();
 
