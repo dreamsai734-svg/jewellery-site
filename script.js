@@ -676,34 +676,32 @@ async function loadImageWithFallback(item) {
 }
 
 async function buildCollageBlob(items) {
-  /* Always render a fixed 2×3 grid (6 items max per page).
-     Maximizes section size: 2 columns × 3 rows on A4 page. */
-  const columns = 2;
-  const rows = 3;
-  const canvasW = 1240;
-  const canvasH = 1754;
-  const padding = 6;
-const gap = 6;
-const labelHeight = 40;
+  /* A4 canvas divided into 6 equal sections: 3 rows × 2 columns.
+     Zero outer padding, zero gaps — every pixel of page space is used.
+     Reading order: 1=top-left, 2=top-right, 3=mid-left, 4=mid-right,
+                    5=bot-left,  6=bot-right */
+  const COLS = 2;
+  const ROWS = 3;
+  const W = 1240;
+  const H = 1754;
+  const LABEL_H = 36;          /* serial label strip at bottom of each cell */
+  const DIVIDER_COLOR = "#cccccc";
 
-  const cellW = Math.floor((canvasW - padding * 2 - (columns - 1) * gap) / columns);
-  const cellH = Math.floor((canvasH - padding * 2 - (rows - 1) * gap) / rows) - labelHeight;
-  const radius = 10;
+  const cellW = W / COLS;       /* 620 px */
+  const cellH = H / ROWS;       /* ~584.67 px */
 
   const canvas = document.createElement("canvas");
-  canvas.width = canvasW;
-  canvas.height = canvasH;
-
+  canvas.width = W;
+  canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "#f6f1ea";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
 
   const images = await Promise.all(
     items.map(async item => {
       try {
-        const loadedImage = await loadImageWithFallback(item);
-        return { id: item["Serial No"], image: loadedImage };
+        return { id: item["Serial No"], image: await loadImageWithFallback(item) };
       } catch (err) {
         console.warn(err);
         return { id: item["Serial No"], image: null };
@@ -711,91 +709,63 @@ const labelHeight = 40;
     })
   );
 
-  function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
-
-  /* Render all 6 cells (3×2 grid), leaving empty cells for unused items */
   for (let index = 0; index < 6; index++) {
-    const col = index % columns;
-    const row = Math.floor(index / columns);
-    const x = padding + col * (cellW + gap);
-    const y = padding + row * (cellH + labelHeight + gap);
+    const col = index % COLS;
+    const row = Math.floor(index / COLS);
+    const x = col * cellW;
+    const y = row * cellH;
+    const imgH = cellH - LABEL_H;
     const entry = images[index];
 
+    /* — Image area — */
     ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,0.10)";
-    ctx.shadowBlur = 14;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 4;
-    roundRect(ctx, x, y, cellW, cellH + labelHeight, radius);
-    ctx.fillStyle = "#ffffff";
-    ctx.fill();
-    ctx.restore();
-
-    ctx.save();
-    roundRect(ctx, x, y, cellW, cellH, radius);
+    ctx.beginPath();
+    ctx.rect(x, y, cellW, imgH);
     ctx.clip();
 
     if (entry && entry.image) {
       const src = entry.image;
-      const innerPad = 14;
-      const boxW = cellW - innerPad * 2;
-      const boxH = cellH - innerPad * 2;
-      const scale = Math.max(boxW / src.width, boxH / src.height);
-const dw = src.width * scale;
-const dh = src.height * scale;
-
-const dx = x + innerPad + (boxW - dw) / 2;
-const dy = y + innerPad + (boxH - dh) / 2;
-
-ctx.drawImage(src, dx, dy, dw, dh);
+      const scale = Math.min(cellW / src.width, imgH / src.height);
+      const dw = src.width * scale;
+      const dh = src.height * scale;
+      const dx = x + (cellW - dw) / 2;
+      const dy = y + (imgH - dh) / 2;
+      ctx.fillStyle = "#f8f8f8";
+      ctx.fillRect(x, y, cellW, imgH);
+      ctx.drawImage(src, dx, dy, dw, dh);
     } else {
-      ctx.fillStyle = "#f0ebe4";
-      ctx.fillRect(x, y, cellW, cellH);
+      ctx.fillStyle = "#eeeeee";
+      ctx.fillRect(x, y, cellW, imgH);
       if (entry) {
         ctx.fillStyle = "#999999";
-        ctx.font = "bold 18px Arial";
+        ctx.font = "bold 16px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("Image unavailable", x + cellW / 2, y + cellH / 2);
+        ctx.fillText("Image unavailable", x + cellW / 2, y + imgH / 2);
       }
     }
-
     ctx.restore();
 
-    ctx.save();
-    roundRect(ctx, x, y, cellW, cellH + labelHeight, radius);
-    ctx.clip();
-    ctx.fillStyle = "#1f2431";
-    ctx.fillRect(x, y + cellH, cellW, labelHeight);
-    ctx.restore();
-
+    /* — Serial label bar — */
+    ctx.fillStyle = "#1a1f2e";
+    ctx.fillRect(x, y + imgH, cellW, LABEL_H);
     if (entry) {
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 22px 'Arial'";
+      ctx.font = "bold 18px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + cellH + labelHeight / 2);
+      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + LABEL_H / 2);
     }
-
-    ctx.save();
-    ctx.strokeStyle = "#d8c8b8";
-    ctx.lineWidth = 1.5;
-    roundRect(ctx, x + 0.75, y + 0.75, cellW - 1.5, cellH + labelHeight - 1.5, radius);
-    ctx.stroke();
-    ctx.restore();
   }
+
+  /* — Grid dividers (drawn last so they sit on top) — */
+  ctx.strokeStyle = DIVIDER_COLOR;
+  ctx.lineWidth = 1;
+  /* vertical centre */
+  ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+  /* horizontal at 1/3 and 2/3 */
+  ctx.beginPath(); ctx.moveTo(0, H / 3); ctx.lineTo(W, H / 3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, H * 2 / 3); ctx.lineTo(W, H * 2 / 3); ctx.stroke();
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(blob => {
