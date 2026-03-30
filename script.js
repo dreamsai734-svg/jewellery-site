@@ -217,16 +217,12 @@ async function generateSelectionPdf() {
       const selectedItems = data.filter(d => chunkIds.includes(d["Serial No"]));
       exportItems.push(...selectedItems);
 
-      // SERVER PATH (commented out for testing — un-comment to re-enable)
-      // try {
-      //   collageBlob = await buildCollageBlobOnServer(chunkIds);
-      // } catch (serverErr) {
-      //   console.warn("Server page render failed for chunk, using browser fallback", serverErr);
-      //   collageBlob = await buildCollageBlob(selectedItems);
-      // }
-
-      // BROWSER FALLBACK (active for testing)
-      collageBlob = await buildCollageBlob(selectedItems);
+      try {
+        collageBlob = await buildCollageBlobOnServer(chunkIds);
+      } catch (serverErr) {
+        console.warn("Server page render failed for chunk, using browser fallback", serverErr);
+        collageBlob = await buildCollageBlob(selectedItems);
+      }
 
       collageBlob = await trimOuterWhitespaceOnly(collageBlob);
       generatedBlobs.push(collageBlob);
