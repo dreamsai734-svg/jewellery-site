@@ -677,25 +677,28 @@ async function loadImageWithFallback(item) {
 
 async function buildCollageBlob(items) {
   /* A4 canvas divided into 6 equal sections: 3 rows × 2 columns.
-     Zero outer padding, zero gaps — every pixel of page space is used.
-     Reading order: 1=top-left, 2=top-right, 3=mid-left, 4=mid-right,
-                    5=bot-left,  6=bot-right */
+     Reading order: 1=top-left, 2=top-right,
+                    3=mid-left, 4=mid-right,
+                    5=bot-left, 6=bot-right */
   const COLS = 2;
   const ROWS = 3;
-  const W = 1240;
-  const H = 1754;
-  const LABEL_H = 36;          /* serial label strip at bottom of each cell */
-  const DIVIDER_COLOR = "#cccccc";
+  const W = 1240;             /* divisible by 2 for clean column edges */
+  const H = 1755;             /* divisible by 3 for clean row edges */
+  const LABEL_H = 48;         /* serial label strip at bottom of each cell */
+  const ACCENT_H = 4;         /* thin accent line above label bar */
+  const DIVIDER_COLOR = "#d4c9bb";
+  const BACKGROUND = "#faf7f2";
 
-  const cellW = W / COLS;       /* 620 px */
-  const cellH = H / ROWS;       /* ~584.67 px */
+  const cellW = W / COLS;     /* 620 px */
+  const cellH = H / ROWS;     /* 585 px */
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  ctx.fillStyle = "#ffffff";
+  /* warm cream background */
+  ctx.fillStyle = BACKGROUND;
   ctx.fillRect(0, 0, W, H);
 
   const images = await Promise.all(
@@ -714,7 +717,7 @@ async function buildCollageBlob(items) {
     const row = Math.floor(index / COLS);
     const x = col * cellW;
     const y = row * cellH;
-    const imgH = cellH - LABEL_H;
+    const imgH = cellH - LABEL_H - ACCENT_H;
     const entry = images[index];
 
     /* — Image area — */
@@ -730,15 +733,15 @@ async function buildCollageBlob(items) {
       const dh = src.height * scale;
       const dx = x + (cellW - dw) / 2;
       const dy = y + (imgH - dh) / 2;
-      ctx.fillStyle = "#f8f8f8";
+      ctx.fillStyle = "#f5f0e9";
       ctx.fillRect(x, y, cellW, imgH);
       ctx.drawImage(src, dx, dy, dw, dh);
     } else {
-      ctx.fillStyle = "#eeeeee";
+      ctx.fillStyle = "#ede7df";
       ctx.fillRect(x, y, cellW, imgH);
       if (entry) {
-        ctx.fillStyle = "#999999";
-        ctx.font = "bold 16px Arial";
+        ctx.fillStyle = "#a08060";
+        ctx.font = "bold 20px Georgia, serif";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText("Image unavailable", x + cellW / 2, y + imgH / 2);
@@ -746,24 +749,28 @@ async function buildCollageBlob(items) {
     }
     ctx.restore();
 
+    /* — Accent line above label — */
+    ctx.fillStyle = "#9d5c3f";
+    ctx.fillRect(x, y + imgH, cellW, ACCENT_H);
+
     /* — Serial label bar — */
-    ctx.fillStyle = "#1a1f2e";
-    ctx.fillRect(x, y + imgH, cellW, LABEL_H);
+    ctx.fillStyle = "#1e2433";
+    ctx.fillRect(x, y + imgH + ACCENT_H, cellW, LABEL_H);
     if (entry) {
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 18px Arial";
+      ctx.font = "bold 22px Arial, sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + LABEL_H / 2);
+      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + ACCENT_H + LABEL_H / 2);
     }
   }
 
-  /* — Grid dividers (drawn last so they sit on top) — */
+  /* — Grid dividers (drawn last) — */
   ctx.strokeStyle = DIVIDER_COLOR;
-  ctx.lineWidth = 1;
-  /* vertical centre */
+  ctx.lineWidth = 1.5;
+  /* 1 vertical at centre */
   ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
-  /* horizontal at 1/3 and 2/3 */
+  /* 2 horizontals at 1/3 and 2/3 */
   ctx.beginPath(); ctx.moveTo(0, H / 3); ctx.lineTo(W, H / 3); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(0, H * 2 / 3); ctx.lineTo(W, H * 2 / 3); ctx.stroke();
 
