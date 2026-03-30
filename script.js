@@ -169,10 +169,6 @@ async function generateSelectionPdf() {
     return;
   }
 
-  if (selected.length > 300) {
-    alert("Large export detected. Compact PDF mode will be used to keep generation stable for high item counts.");
-  }
-
   showSpinner(true);
 
   try {
@@ -181,18 +177,11 @@ async function generateSelectionPdf() {
     const exportItems = [];
 
     for (const chunkIds of selectedChunks) {
-      let collageBlob;
       const selectedItems = data.filter(d => chunkIds.includes(d["Serial No"]));
       exportItems.push(...selectedItems);
 
-      try {
-        collageBlob = await buildCollageBlobOnServer(chunkIds);
-      } catch (serverErr) {
-        console.warn("Server page render failed for chunk, using browser fallback", serverErr);
-        collageBlob = await buildCollageBlob(selectedItems);
-      }
-
-      collageBlob = await trimOuterWhitespaceOnly(collageBlob);
+      /* Always build via browser canvas so we control the 2-col × 3-row layout */
+      const collageBlob = await buildCollageBlob(selectedItems);
       generatedBlobs.push(collageBlob);
     }
 
@@ -207,10 +196,6 @@ async function generateSelectionPdf() {
     lastPdfBlob = null;
 
     await rebuildPdfPreview();
-
-    if (collageBlobs.length > 1) {
-      alert(`${collageBlobs.length} PDF pages prepared. Preview updated.`);
-    }
 
   } catch (err) {
     console.error(err);
@@ -229,10 +214,6 @@ async function generateFinalTrayFromSerials() {
     return;
   }
 
-  if (serials.length > 300) {
-    setSerialFeedback("Large export detected. Compact PDF mode will be used for better stability.", false);
-  }
-
   showSpinner(true);
   setSerialFeedback("Preparing final tray PDF and updating marked status...", false);
 
@@ -244,15 +225,20 @@ async function generateFinalTrayFromSerials() {
     const exportItems = resolveItemsBySerials(serials);
 
     for (const serialChunk of serialChunks) {
+      /* Call server only to mark items in Excel — ignore its collage image */
       const result = await buildFinalTrayAndMarkOnServer(serialChunk);
 
-      if (!result.ok || !result.base64) {
-        throw new Error(result.error || "Unable to prepare the final tray PDF");
+      if (!result.ok) {
+        throw new Error(result.error || "Unable to mark items in Excel");
       }
 
-      generatedBlobs.push(base64ToBlob(result.base64, result.mimeType || "image/png"));
       updatedCount += Number(result.updatedCount || 0);
       (result.missingSerials || []).forEach(s => allMissing.add(String(s)));
+
+      /* Build collage via browser canvas so layout matches 2-col × 3-row */
+      const chunkItems = resolveItemsBySerials(serialChunk);
+      const collageBlob = await buildCollageBlob(chunkItems);
+      generatedBlobs.push(collageBlob);
     }
 
     if (!generatedBlobs.length) {
@@ -276,7 +262,7 @@ async function generateFinalTrayFromSerials() {
       : "";
 
     setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${pageText}`, false);
-    alert(`Final tray PDF prepared for all entered serials. ${updatedCount} items marked in Excel.${pageText}`);
+    alert(`Final tray PDF prepared. ${updatedCount} items marked in Excel.${pageText}`);
   } catch (err) {
     console.error(err);
     setSerialFeedback(err.message || "Failed to prepare the final tray PDF", true);
@@ -662,7 +648,7 @@ function loadImage(url) {
 }
 
 async function loadImageWithFallback(item) {
-  const urls = [item["CollageURL"]].filter(Boolean);
+  const urls = [item["CollageURL"], item["DisplayURL"]].filter(Boolean);
 
   for (const url of urls) {
     try {
@@ -672,7 +658,7 @@ async function loadImageWithFallback(item) {
     }
   }
 
-  throw new Error(`No CORS-safe image source for ${item["Serial No"]}. CollageURL is missing or invalid.`);
+  throw new Error(`No accessible image for ${item["Serial No"]}. Both CollageURL and DisplayURL failed.`);
 }
 
 async function buildCollageBlob(items) {
