@@ -9,20 +9,6 @@ let lastPdfUrl = "";
 
 const API_URL = "https://script.google.com/macros/s/AKfycbxR-98U3MLMyvwhaFBF8XavgLMo9L6tnhUkH55fo4JDvgnckxCYBl9s8xIBBfUUO_U/exec";
 
-function escapeHtml(str) {
-  return String(str || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function safeUrl(url) {
-  const s = String(url || "");
-  return (s.startsWith("https://") || s.startsWith("http://")) ? s : "";
-}
-
 /* FETCH DATA */
 loadData();
 
@@ -32,26 +18,15 @@ async function loadData() {
     hideMarkedNode.checked = true;
   }
 
-  try {
-    const res = await fetch(API_URL);
-    if (!res.ok) {
-      throw new Error(`Server responded with ${res.status}`);
-    }
-    const json = await res.json();
-    data = Array.isArray(json) ? json : (json.data || []);
-    selected = selected.filter(id => {
-      const item = data.find(d => d["Serial No"] === id);
-      return item && normalizeStatus(item["Status"]) !== "marked";
-    });
-    initFilter();
-    render();
-  } catch (err) {
-    console.error("Failed to load catalogue data:", err);
-    const summary = document.getElementById("gridSummary");
-    if (summary) {
-      summary.textContent = "Failed to load catalogue. Please refresh.";
-    }
-  }
+  const res = await fetch(API_URL);
+  const json = await res.json();
+  data = Array.isArray(json) ? json : (json.data || []);
+  selected = selected.filter(id => {
+    const item = data.find(d => d["Serial No"] === id);
+    return item && normalizeStatus(item["Status"]) !== "marked";
+  });
+  initFilter();
+  render();
 }
 
 function normalizeStatus(status) {
@@ -79,15 +54,10 @@ function switchTab(tabName) {
 function initFilter() {
   let types = [...new Set(data.map(d => d["Type"]).filter(Boolean))];
   types.sort((a, b) => String(a).localeCompare(String(b)));
-  const typeFilter = document.getElementById("filterType");
-  typeFilter.innerHTML = '<option value="">All Types</option>' +
-    types.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+  let filter = document.getElementById("filterType");
 
-  let brands = [...new Set(data.map(d => String(d["Brand Name"] || "").trim()).filter(Boolean))];
-  brands.sort((a, b) => a.localeCompare(b));
-  const brandFilter = document.getElementById("filterBrand");
-  brandFilter.innerHTML = '<option value="">All Brands</option>' +
-    brands.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join("");
+  filter.innerHTML = '<option value="">All</option>' +
+    types.map(t => `<option value="${t}">${t}</option>`).join("");
 }
 
 function updateDashboardStats(visibleCount) {
@@ -111,16 +81,14 @@ function updateDashboardStats(visibleCount) {
 /* RENDER GRID */
 function render() {
   let filterType = document.getElementById("filterType").value;
-  let filterBrand = document.getElementById("filterBrand").value;
   let filterStatus = document.getElementById("filterStatus").value;
   let hideMarked = document.getElementById("hideMarked").checked;
 
   let filtered = data.filter(d => {
     const status = normalizeStatus(d["Status"]);
     const typeMatch = !filterType || d["Type"] === filterType;
-    const brandMatch = !filterBrand || String(d["Brand Name"] || "").trim() === filterBrand;
 
-    if (!typeMatch || !brandMatch) {
+    if (!typeMatch) {
       return false;
     }
 
@@ -146,9 +114,9 @@ function render() {
     let isSelected = selected.includes(item["Serial No"]);
 
     html += `
-      <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" data-serial="${escapeHtml(item["Serial No"])}">
-        <img src="${safeUrl(item["DisplayURL"])}" alt="${escapeHtml(item["Serial No"])}">
-        <p>${escapeHtml(item["Serial No"])}</p>
+      <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" onclick='toggle("${item["Serial No"]}")'>
+        <img src="${item["DisplayURL"]}">
+        <p>${item["Serial No"]}</p>
         ${status === "marked" ? '<p class="marked-label">Marked</p>' : ''}
       </div>
     `;
@@ -188,8 +156,8 @@ function renderSelected() {
   area.innerHTML = selectedItems
     .map(item => `
       <div class="selection-card">
-        <img src="${safeUrl(item["DisplayURL"])}" alt="${escapeHtml(item["Serial No"])}">
-        <p>${escapeHtml(item["Serial No"])}</p>
+        <img src="${item["DisplayURL"]}" alt="${item["Serial No"]}">
+        <p>${item["Serial No"]}</p>
       </div>
     `).join("");
 }
@@ -396,43 +364,6 @@ function resolveItemsBySerials(serials) {
 
   return items;
 }
-
-function selectAllByBrand() {
-  const brandValue = document.getElementById("filterBrand").value;
-  if (!brandValue) {
-    alert("Choose a brand from the Brand filter first, then click Select Whole Brand.");
-    return;
-  }
-
-  const toAdd = data.filter(d => {
-    const brand = String(d["Brand Name"] || "").trim();
-    return brand === brandValue && normalizeStatus(d["Status"]) !== "marked";
-  });
-
-  if (!toAdd.length) {
-    alert(`No unmarked items found for brand "${brandValue}".`);
-    return;
-  }
-
-  let addedCount = 0;
-  toAdd.forEach(item => {
-    const id = item["Serial No"];
-    if (!selected.includes(id)) {
-      selected.push(id);
-      addedCount++;
-    }
-  });
-
-  render();
-
-  if (addedCount === 0) {
-    alert(`All items from "${brandValue}" are already in your selection.`);
-  } else {
-    alert(`Added ${addedCount} item${addedCount === 1 ? "" : "s"} from "${brandValue}" to selection.`);
-  }
-}
-
-window.selectAllByBrand = selectAllByBrand;
 
 function setSerialFeedback(message, isError) {
   const node = document.getElementById("serialFeedback");
@@ -744,349 +675,106 @@ async function loadImageWithFallback(item) {
   throw new Error(`No CORS-safe image source for ${item["Serial No"]}. CollageURL is missing or invalid.`);
 }
 
-// async function buildCollageBlob(items) {
-//   /* A4 canvas divided into 6 equal sections: 3 rows × 2 columns.
-//      Zero outer padding, zero gaps — every pixel of page space is used.
-//      Reading order: 1=top-left, 2=top-right, 3=mid-left, 4=mid-right,
-//                     5=bot-left,  6=bot-right */
-//   const COLS = 2;
-//   const ROWS = 3;
-//   const W = 1240;
-//   const H = 1754;
-//   const LABEL_H = 36;          /* serial label strip at bottom of each cell */
-//   const DIVIDER_COLOR = "#cccccc";
-
-//   const cellW = W / COLS;       /* 620 px */
-//   const cellH = H / ROWS;       /* ~584.67 px */
-
-//   const canvas = document.createElement("canvas");
-//   canvas.width = W;
-//   canvas.height = H;
-//   const ctx = canvas.getContext("2d");
-
-//   ctx.fillStyle = "#ffffff";
-//   ctx.fillRect(0, 0, W, H);
-
-//   const images = await Promise.all(
-//     items.map(async item => {
-//       try {
-//         return { id: item["Serial No"], image: await loadImageWithFallback(item) };
-//       } catch (err) {
-//         console.warn(err);
-//         return { id: item["Serial No"], image: null };
-//       }
-//     })
-//   );
-
-//   for (let index = 0; index < 6; index++) {
-//     const col = index % COLS;
-//     const row = Math.floor(index / COLS);
-//     const x = col * cellW;
-//     const y = row * cellH;
-//     const imgH = cellH - LABEL_H;
-//     const entry = images[index];
-
-//     /* — Image area — */
-//     ctx.save();
-//     ctx.beginPath();
-//     ctx.rect(x, y, cellW, imgH);
-//     ctx.clip();
-
-//     if (entry && entry.image) {
-//       const src = entry.image;
-//       const scale = Math.min(cellW / src.width, imgH / src.height);
-//       const dw = src.width * scale;
-//       const dh = src.height * scale;
-//       const dx = x + (cellW - dw) / 2;
-//       const dy = y + (imgH - dh) / 2;
-//       ctx.fillStyle = "#f8f8f8";
-//       ctx.fillRect(x, y, cellW, imgH);
-//       ctx.drawImage(src, dx, dy, dw, dh);
-//     } else {
-//       ctx.fillStyle = "#eeeeee";
-//       ctx.fillRect(x, y, cellW, imgH);
-//       if (entry) {
-//         ctx.fillStyle = "#999999";
-//         ctx.font = "bold 16px Arial";
-//         ctx.textAlign = "center";
-//         ctx.textBaseline = "middle";
-//         ctx.fillText("Image unavailable", x + cellW / 2, y + imgH / 2);
-//       }
-//     }
-//     ctx.restore();
-
-//     /* — Serial label bar — */
-//     ctx.fillStyle = "#1a1f2e";
-//     ctx.fillRect(x, y + imgH, cellW, LABEL_H);
-//     if (entry) {
-//       ctx.fillStyle = "#ffffff";
-//       ctx.font = "bold 18px Arial";
-//       ctx.textAlign = "center";
-//       ctx.textBaseline = "middle";
-//       ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + LABEL_H / 2);
-//     }
-//   }
-
-//   /* — Grid dividers (drawn last so they sit on top) — */
-//   ctx.strokeStyle = DIVIDER_COLOR;
-//   ctx.lineWidth = 1;
-//   /* vertical centre */
-//   ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
-//   /* horizontal at 1/3 and 2/3 */
-//   ctx.beginPath(); ctx.moveTo(0, H / 3); ctx.lineTo(W, H / 3); ctx.stroke();
-//   ctx.beginPath(); ctx.moveTo(0, H * 2 / 3); ctx.lineTo(W, H * 2 / 3); ctx.stroke();
-
-//   return new Promise((resolve, reject) => {
-//     canvas.toBlob(blob => {
-//       if (!blob) {
-//         reject(new Error("Unable to build collage blob"));
-//         return;
-//       }
-//       resolve(blob);
-//     }, "image/png", 0.96);
-//   });
-// }
-
 async function buildCollageBlob(items) {
-  if (!Array.isArray(items)) throw new Error("Invalid items array");
-
-  // ── Canvas dimensions (A4 ratio @ ~150 dpi) ──────────────────────────────
+  /* A4 canvas divided into 6 equal sections: 3 rows × 2 columns.
+     Zero outer padding, zero gaps — every pixel of page space is used.
+     Reading order: 1=top-left, 2=top-right, 3=mid-left, 4=mid-right,
+                    5=bot-left,  6=bot-right */
+  const COLS = 2;
+  const ROWS = 3;
   const W = 1240;
   const H = 1754;
+  const LABEL_H = 36;          /* serial label strip at bottom of each cell */
+  const DIVIDER_COLOR = "#cccccc";
 
-  // ── Layout ────────────────────────────────────────────────────────────────
-  const MARGIN    = 28;
-  const HEADER_H  = 90;
-  const FOOTER_H  = 62;
-  const CELL_GAP  = 20;
-  const LABEL_H   = 54;
-  const CELL_PAD  = 14;
-  const CORNER    = 18;
-  const COLS      = 2;
-  const ROWS      = 3;
+  const cellW = W / COLS;       /* 620 px */
+  const cellH = H / ROWS;       /* ~584.67 px */
 
-  // ── Palette ───────────────────────────────────────────────────────────────
-  const C_BG         = "#f4ede2";   // warm parchment
-  const C_CELL       = "#fffdf9";   // near-white card
-  const C_HEADER     = "#151b2e";   // deep navy
-  const C_GOLD       = "#c9a05a";   // primary gold
-  const C_GOLD_LT    = "#e8d08a";   // lighter gold highlight
-  const C_GOLD_DIM   = "rgba(201,160,90,0.30)";
-  const C_LABEL_BG   = "#192033";   // label bar navy
-  const C_LABEL_TEXT = "#f0d98a";   // gold serial text
-  const C_IMG_BG     = "#eee8df";   // placeholder image bg
-
-  // ── Grid math ─────────────────────────────────────────────────────────────
-  const gridX  = MARGIN;
-  const gridY  = MARGIN + HEADER_H + 12;
-  const gridW  = W - 2 * MARGIN;
-  const gridH  = H - 2 * MARGIN - HEADER_H - FOOTER_H - 24;
-  const cellW  = Math.floor((gridW - CELL_GAP) / COLS);
-  const cellH  = Math.floor((gridH - (ROWS - 1) * CELL_GAP) / ROWS);
-
-  // ── Canvas setup ──────────────────────────────────────────────────────────
   const canvas = document.createElement("canvas");
-  canvas.width  = W;
+  canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  // ── Helper: rounded-rect path ─────────────────────────────────────────────
-  function rrp(x, y, w, h, r) {
-    const R = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + R, y);
-    ctx.lineTo(x + w - R, y);
-    ctx.arcTo(x + w, y,     x + w, y + R,     R);
-    ctx.lineTo(x + w, y + h - R);
-    ctx.arcTo(x + w, y + h, x + w - R, y + h, R);
-    ctx.lineTo(x + R, y + h);
-    ctx.arcTo(x,     y + h, x, y + h - R,     R);
-    ctx.lineTo(x, y + R);
-    ctx.arcTo(x,     y,     x + R, y,          R);
-    ctx.closePath();
-  }
-
-  // ── Background ────────────────────────────────────────────────────────────
-  ctx.fillStyle = C_BG;
+  ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
 
-  // Subtle texture lines
-  ctx.strokeStyle = "rgba(160,130,100,0.10)";
-  ctx.lineWidth = 0.6;
-  for (let y = 0; y < H; y += 22) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  // ── Outer gold page border (double rule) ─────────────────────────────────
-  rrp(10, 10, W - 20, H - 20, 26);
-  ctx.strokeStyle = C_GOLD;
-  ctx.lineWidth = 3.5;
-  ctx.stroke();
-
-  rrp(18, 18, W - 36, H - 36, 20);
-  ctx.strokeStyle = C_GOLD_LT;
-  ctx.lineWidth = 0.9;
-  ctx.stroke();
-
-  // ── Header band ───────────────────────────────────────────────────────────
-  rrp(MARGIN, MARGIN, W - 2 * MARGIN, HEADER_H, 14);
-  ctx.fillStyle = C_HEADER;
-  ctx.fill();
-
-  // Gold rule at bottom of header
-  ctx.fillStyle = C_GOLD;
-  ctx.fillRect(MARGIN + 20, MARGIN + HEADER_H - 8, W - 2 * MARGIN - 40, 2.5);
-  ctx.fillStyle = C_GOLD_LT;
-  ctx.fillRect(MARGIN + 20, MARGIN + HEADER_H - 4.5, W - 2 * MARGIN - 40, 1);
-
-  // Header eyebrow
-  ctx.fillStyle = C_GOLD;
-  ctx.font = "bold 14px Arial";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText("\u2736  JEWELLERY CATALOGUE  \u2736", W / 2, MARGIN + 26);
-
-  // Header title
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 34px Arial";
-  ctx.fillText("SIGNATURE COLLECTION", W / 2, MARGIN + 62);
-
-  // ── Footer band ───────────────────────────────────────────────────────────
-  const fy = H - MARGIN - FOOTER_H;
-  rrp(MARGIN, fy, W - 2 * MARGIN, FOOTER_H, 14);
-  ctx.fillStyle = C_HEADER;
-  ctx.fill();
-
-  // Gold rule at top of footer
-  ctx.fillStyle = C_GOLD;
-  ctx.fillRect(MARGIN + 20, fy + 7, W - 2 * MARGIN - 40, 2);
-  ctx.fillStyle = C_GOLD_LT;
-  ctx.fillRect(MARGIN + 20, fy + 9.5, W - 2 * MARGIN - 40, 0.8);
-
-  const dateStr = new Date().toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
-  ctx.textBaseline = "middle";
-  ctx.font = "13px Arial";
-  ctx.fillStyle = C_GOLD;
-  ctx.textAlign = "left";
-  ctx.fillText("Prepared: " + dateStr, MARGIN + 28, fy + FOOTER_H / 2 + 4);
-  ctx.textAlign = "right";
-  ctx.fillStyle = "#8a9cc0";
-  ctx.fillText("For Private Client Viewing Only", MARGIN + (W - 2 * MARGIN) - 28, fy + FOOTER_H / 2 + 4);
-
-  // ── Load images ───────────────────────────────────────────────────────────
   const images = await Promise.all(
-    items.slice(0, 6).map(async (item, i) => {
+    items.map(async item => {
       try {
-        return { id: item?.["Serial No"] ?? `#${i + 1}`, image: await loadImageWithFallback(item) };
+        return { id: item["Serial No"], image: await loadImageWithFallback(item) };
       } catch (err) {
-        console.warn("Image load failed:", err);
-        return { id: item?.["Serial No"] ?? `#${i + 1}`, image: null };
+        console.warn(err);
+        return { id: item["Serial No"], image: null };
       }
     })
   );
-  while (images.length < 6) images.push({ id: "", image: null });
 
-  // ── Draw each cell ────────────────────────────────────────────────────────
   for (let index = 0; index < 6; index++) {
     const col = index % COLS;
     const row = Math.floor(index / COLS);
-    const cx  = gridX + col * (cellW + CELL_GAP);
-    const cy  = gridY + row * (cellH + CELL_GAP);
+    const x = col * cellW;
+    const y = row * cellH;
+    const imgH = cellH - LABEL_H;
     const entry = images[index];
 
-    // Drop-shadow (simulated with an offset fill)
-    ctx.fillStyle = "rgba(30, 18, 8, 0.09)";
-    rrp(cx + 5, cy + 5, cellW, cellH, CORNER);
-    ctx.fill();
-
-    // Cell card background
-    rrp(cx, cy, cellW, cellH, CORNER);
-    ctx.fillStyle = C_CELL;
-    ctx.fill();
-
-    // Gold outer border
-    rrp(cx, cy, cellW, cellH, CORNER);
-    ctx.strokeStyle = C_GOLD;
-    ctx.lineWidth = 2.2;
-    ctx.stroke();
-
-    // Inner fine gold border
-    rrp(cx + 5, cy + 5, cellW - 10, cellH - 10, CORNER - 4);
-    ctx.strokeStyle = C_GOLD_DIM;
-    ctx.lineWidth = 0.9;
-    ctx.stroke();
-
-    // ── Image area ──────────────────────────────────────────────────────────
-    const imgX = cx + CELL_PAD;
-    const imgY = cy + CELL_PAD;
-    const imgW = cellW - 2 * CELL_PAD;
-    const imgAreaH = cellH - 2 * CELL_PAD - LABEL_H - 8;
-
+    /* — Image area — */
     ctx.save();
-    rrp(imgX, imgY, imgW, imgAreaH, CORNER - 6);
-    ctx.fillStyle = C_IMG_BG;
-    ctx.fill();
+    ctx.beginPath();
+    ctx.rect(x, y, cellW, imgH);
     ctx.clip();
 
-    if (entry.image) {
-      const src   = entry.image;
-      const scale = Math.min(imgW / src.width, imgAreaH / src.height);
-      const dw    = src.width * scale;
-      const dh    = src.height * scale;
-      const dx    = imgX + (imgW - dw) / 2;
-      const dy    = imgY + (imgAreaH - dh) / 2;
+    if (entry && entry.image) {
+      const src = entry.image;
+      const scale = Math.min(cellW / src.width, imgH / src.height);
+      const dw = src.width * scale;
+      const dh = src.height * scale;
+      const dx = x + (cellW - dw) / 2;
+      const dy = y + (imgH - dh) / 2;
+      ctx.fillStyle = "#f8f8f8";
+      ctx.fillRect(x, y, cellW, imgH);
       ctx.drawImage(src, dx, dy, dw, dh);
-    } else if (entry.id) {
-      ctx.fillStyle = "#b0a090";
-      ctx.font = "bold 17px Arial";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText("Image unavailable", imgX + imgW / 2, imgY + imgAreaH / 2);
+    } else {
+      ctx.fillStyle = "#eeeeee";
+      ctx.fillRect(x, y, cellW, imgH);
+      if (entry) {
+        ctx.fillStyle = "#999999";
+        ctx.font = "bold 16px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("Image unavailable", x + cellW / 2, y + imgH / 2);
+      }
     }
     ctx.restore();
 
-    // Image frame gold border
-    rrp(imgX, imgY, imgW, imgAreaH, CORNER - 6);
-    ctx.strokeStyle = C_GOLD;
-    ctx.lineWidth = 1.6;
-    ctx.stroke();
-
-    // ── Label bar ───────────────────────────────────────────────────────────
-    const lx = cx + CELL_PAD;
-    const ly = cy + cellH - CELL_PAD - LABEL_H;
-    const lw = cellW - 2 * CELL_PAD;
-
-    rrp(lx, ly, lw, LABEL_H, 10);
-    ctx.fillStyle = C_LABEL_BG;
-    ctx.fill();
-
-    rrp(lx, ly, lw, LABEL_H, 10);
-    ctx.strokeStyle = C_GOLD;
-    ctx.lineWidth = 1.2;
-    ctx.stroke();
-
-    if (entry.id) {
-      ctx.fillStyle = C_LABEL_TEXT;
-      ctx.font = "bold 21px Arial";
+    /* — Serial label bar — */
+    ctx.fillStyle = "#1a1f2e";
+    ctx.fillRect(x, y + imgH, cellW, LABEL_H);
+    if (entry) {
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 18px Arial";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(entry.id), lx + lw / 2, ly + LABEL_H / 2);
+      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + LABEL_H / 2);
     }
   }
 
-  // ---- EXPORT ----
+  /* — Grid dividers (drawn last so they sit on top) — */
+  ctx.strokeStyle = DIVIDER_COLOR;
+  ctx.lineWidth = 1;
+  /* vertical centre */
+  ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+  /* horizontal at 1/3 and 2/3 */
+  ctx.beginPath(); ctx.moveTo(0, H / 3); ctx.lineTo(W, H / 3); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, H * 2 / 3); ctx.lineTo(W, H * 2 / 3); ctx.stroke();
+
   return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      blob => {
-        if (!blob) {
-          reject(new Error("Unable to build collage blob"));
-        } else {
-          resolve(blob);
-        }
-      },
-      "image/png",
-      0.96
-    );
+    canvas.toBlob(blob => {
+      if (!blob) {
+        reject(new Error("Unable to build collage blob"));
+        return;
+      }
+      resolve(blob);
+    }, "image/png", 0.96);
   });
 }
 
@@ -1192,10 +880,3 @@ async function trimOuterWhitespaceOnly(blob) {
     img.src = url;
   });
 }
-
-document.getElementById("grid").addEventListener("click", function (e) {
-  const card = e.target.closest(".card[data-serial]");
-  if (card) {
-    toggle(card.dataset.serial);
-  }
-});
