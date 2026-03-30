@@ -16,246 +16,371 @@
     });
   }
 
-  /* ---------- PREMIUM BACKGROUND ---------- */
-  function drawPageTexture(pdf, w, h) {
+  function drawPageTexture(pdf, pageWidth, pageHeight) {
+    // Soft luxury gradient effect
     pdf.setFillColor(245, 240, 235);
-    pdf.rect(0, 0, w, h, "F");
+    pdf.rect(0, 0, pageWidth, pageHeight, "F");
 
+    // subtle layered overlay
     pdf.setFillColor(255, 255, 255);
-    pdf.setGState(new pdf.GState({ opacity: 0.35 }));
-    pdf.rect(0, 0, w, h / 2, "F");
+    pdf.setGState(new pdf.GState({ opacity: 0.4 }));
+    pdf.rect(0, 0, pageWidth, pageHeight / 2, "F");
 
     pdf.setGState(new pdf.GState({ opacity: 1 }));
   }
 
-  /* ---------- HEADER ---------- */
-  function drawHeader(pdf, w, title, pageNumber, totalPages, label) {
-    pdf.setFillColor(18, 18, 18);
-    pdf.rect(0, 0, w, 70, "F");
+  function drawGemMotif(pdf, x, y, size, fill, stroke) {
+    const half = size / 2;
+    pdf.setFillColor(fill[0], fill[1], fill[2]);
+    pdf.setDrawColor(stroke[0], stroke[1], stroke[2]);
+    pdf.setLineWidth(1);
+    pdf.triangle(x, y - half, x - half, y, x + half, y, "FD");
+    pdf.triangle(x, y + half, x - half, y, x + half, y, "FD");
+    pdf.setDrawColor(stroke[0] - 8, stroke[1] - 8, stroke[2] - 8);
+    pdf.line(x, y - half, x, y + half);
+    pdf.line(x - half, y, x + half, y);
+  }
+
+  function drawOrnaments(pdf, pageWidth, pageHeight) {
+    pdf.setFillColor(246, 232, 220);
+    pdf.setDrawColor(223, 202, 186);
+    pdf.circle(pageWidth - 66, 74, 18, "FD");
+    pdf.circle(pageWidth - 38, 104, 8, "FD");
+    pdf.circle(48, pageHeight - 60, 22, "FD");
+    pdf.circle(84, pageHeight - 32, 10, "FD");
+
+    drawGemMotif(pdf, pageWidth - 122, 96, 18, [255, 244, 232], [199, 169, 146]);
+    drawGemMotif(pdf, 76, pageHeight - 84, 16, [255, 244, 232], [199, 169, 146]);
+
+    pdf.setDrawColor(205, 173, 151);
+    pdf.setLineWidth(1.2);
+    pdf.line(pageWidth - 140, 72, pageWidth - 92, 120);
+    pdf.line(pageWidth - 92, 72, pageWidth - 140, 120);
+    pdf.line(56, pageHeight - 110, 100, pageHeight - 66);
+    pdf.line(100, pageHeight - 110, 56, pageHeight - 66);
+  }
+
+  function drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, sectionLabel) {
+    pdf.setFillColor(20, 20, 20);
+    pdf.rect(0, 0, pageWidth, 70, "F");
 
     pdf.setTextColor(255, 255, 255);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(18);
     pdf.text(title, 30, 40);
 
-    pdf.setFontSize(10);
     pdf.setFont("helvetica", "normal");
-    pdf.text(label, 30, 58);
-    pdf.text(`Page ${pageNumber}/${totalPages}`, w - 30, 58, { align: "right" });
+    pdf.setFontSize(10);
+    pdf.text(sectionLabel, 30, 58);
+
+    pdf.text(`Page ${pageNumber}/${totalPages}`, pageWidth - 40, 58, { align: "right" });
   }
 
-  /* ---------- COVER PAGE ---------- */
-  async function drawCoverPage(pdf, w, h, title, totalPages, firstBlob, itemCount) {
-    const img = await blobToDataUrl(firstBlob);
+  function drawFooter(pdf, pageWidth, pageHeight, margin) {
+    pdf.setDrawColor(220, 221, 225);
+    pdf.line(margin, pageHeight - margin - 10, pageWidth - margin, pageHeight - margin - 10);
+    pdf.setTextColor(96, 103, 116);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(9);
+  }
 
-    // FULL HERO IMAGE
-    pdf.addImage(img, "PNG", 0, 0, w, h, undefined, "FAST");
+  async function drawCoverPage(pdf, pageWidth, pageHeight, margin, title, totalPages, firstBlob, itemCount) {
+    drawPageTexture(pdf, pageWidth, pageHeight);
 
-    // DARK OVERLAY
+    // FULL IMAGE HERO BACKGROUND
+    const imageDataUrl = await blobToDataUrl(firstBlob);
+    pdf.addImage(imageDataUrl, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+
+    // DARK OVERLAY (for text readability)
     pdf.setFillColor(0, 0, 0);
-    pdf.setGState(new pdf.GState({ opacity: 0.5 }));
-    pdf.rect(0, 0, w, h, "F");
+    pdf.setGState(new pdf.GState({ opacity: 0.45 }));
+    pdf.rect(0, 0, pageWidth, pageHeight, "F");
     pdf.setGState(new pdf.GState({ opacity: 1 }));
 
-    // TEXT
+    // TITLE BLOCK
     pdf.setTextColor(255, 255, 255);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(40);
-    pdf.text(title, 50, h / 2);
 
-    pdf.setFontSize(16);
+    pdf.setFontSize(36);
+    pdf.text(title, 40, pageHeight / 2);
+
+    pdf.setFontSize(14);
     pdf.setFont("helvetica", "normal");
-    pdf.text("Luxury Jewellery Catalogue", 50, h / 2 + 35);
+    pdf.text("Luxury Jewellery Catalogue", 40, pageHeight / 2 + 30);
 
-    pdf.setFontSize(12);
+    pdf.setFontSize(11);
     pdf.text(
       `${itemCount} Designs  •  ${totalPages} Pages  •  ${formatDateLabel()}`,
-      50,
-      h / 2 + 65
+      40,
+      pageHeight / 2 + 55
     );
 
-    // BOTTOM STRIP
+    // Bottom branding strip
     pdf.setFillColor(255, 255, 255);
-    pdf.rect(0, h - 70, w, 70, "F");
+    pdf.rect(0, pageHeight - 60, pageWidth, 60, "F");
 
-    pdf.setTextColor(90, 90, 90);
-    pdf.setFontSize(11);
-    pdf.text("Crafted for premium client presentation", 50, h - 30);
+    pdf.setTextColor(80, 80, 80);
+    pdf.setFontSize(10);
+    pdf.text("Crafted for premium client presentation", 40, pageHeight - 25);
   }
 
-  /* ---------- GROUPING ---------- */
+  function drawVisualPageDetails(pdf, margin, pageWidth, frameY, frameHeight, index, totalVisualPages) {
+    const badgeY = frameY + frameHeight + 12;
+
+    pdf.setFillColor(255, 248, 241);
+    pdf.roundedRect(margin, badgeY, 170, 28, 12, 12, "F");
+    pdf.setTextColor(108, 59, 37);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(10);
+    pdf.text(`Catalogue Spread ${index + 1} of ${totalVisualPages}`, margin + 14, badgeY + 18);
+
+    pdf.setFillColor(241, 233, 225);
+    pdf.roundedRect(pageWidth - margin - 170, badgeY, 170, 28, 12, 12, "F");
+    pdf.setTextColor(96, 103, 116);
+    pdf.setFont("helvetica", "normal");
+    pdf.text("Client-ready catalogue page", pageWidth - margin - 156, badgeY + 18);
+  }
+
   function normalizeTypeLabel(item) {
-    return String(item?.["Type"] || "").trim() || "Uncategorized";
+    const raw = String((item && item["Type"]) || "").trim();
+    return raw || "Uncategorized";
   }
 
-  function buildRows(items) {
-    const map = new Map();
+  function buildTypeGroupedRows(items) {
+    const byType = new Map();
 
-    items.forEach(i => {
-      const type = normalizeTypeLabel(i);
-      if (!map.has(type)) map.set(type, []);
-      map.get(type).push(i);
+    items.forEach(item => {
+      const type = normalizeTypeLabel(item);
+      if (!byType.has(type)) {
+        byType.set(type, []);
+      }
+      byType.get(type).push(item);
     });
 
+    const sortedTypes = [...byType.keys()].sort((a, b) => a.localeCompare(b));
     const rows = [];
 
-    [...map.keys()].sort().forEach(type => {
+    sortedTypes.forEach(type => {
       rows.push({ kind: "section", label: type });
 
-      map.get(type)
-        .sort((a, b) =>
-          String(a["Serial No"] || "").localeCompare(String(b["Serial No"] || ""))
-        )
-        .forEach(item => rows.push({ kind: "item", item }));
+      const typeItems = byType.get(type).slice().sort((a, b) => {
+        const sa = String((a && a["Serial No"]) || "");
+        const sb = String((b && b["Serial No"]) || "");
+        return sa.localeCompare(sb);
+      });
+
+      typeItems.forEach(item => {
+        rows.push({ kind: "item", item: item });
+      });
     });
 
     return rows;
   }
 
-  /* ---------- PAGINATION ---------- */
-  function paginate(rows, h) {
-    const top = 120;
-    const bottom = h - 40;
+  function paginateGroupedRows(rows, pageHeight, margin) {
+    const topY = margin + 136;
+    const bottomY = pageHeight - margin - 30;
+    const sectionH = 38;
+    const cardH = 54;
+    const sectionGap = 10;
+    const cardGap = 10;
 
     const pages = [];
     let page = [];
-    let y = top;
+    let y = topY;
 
-    rows.forEach(r => {
-      const height = r.kind === "section" ? 40 : 60;
+    rows.forEach((row, index) => {
+      const isSection = row.kind === "section";
+      const blockH = isSection ? sectionH : cardH;
+      const gap = isSection ? sectionGap : cardGap;
+      const needed = blockH + gap;
 
-      if (y + height > bottom && page.length) {
+      if (y + needed > bottomY && page.length) {
         pages.push(page);
         page = [];
-        y = top;
+        y = topY;
       }
 
-      page.push(r);
-      y += height + 10;
+      if (isSection && y + sectionH > bottomY && page.length) {
+        pages.push(page);
+        page = [];
+        y = topY;
+      }
+
+      page.push(row);
+      y += needed;
+
+      const nextRow = rows[index + 1];
+      if (row.kind === "section" && !nextRow) {
+        return;
+      }
     });
 
-    if (page.length) pages.push(page);
+    if (page.length) {
+      pages.push(page);
+    }
 
-    return pages;
+    return {
+      pages: pages,
+      metrics: {
+        topY: topY,
+        sectionH: sectionH,
+        cardH: cardH,
+        sectionGap: sectionGap,
+        cardGap: cardGap
+      }
+    };
   }
 
-  /* ---------- DRAW CARDS ---------- */
-  function drawSection(pdf, x, y, w, label) {
-    pdf.setFillColor(240, 230, 220);
-    pdf.roundedRect(x, y, w, 40, 12, 12, "F");
+  function drawSerialSectionHeader(pdf, x, y, width, label) {
+    pdf.setFillColor(247, 236, 226);
+    pdf.setDrawColor(223, 203, 186);
+    pdf.roundedRect(x, y, width, 38, 12, 12, "FD");
 
-    pdf.setTextColor(120, 70, 40);
+    pdf.setTextColor(108, 59, 37);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(13);
-    pdf.text(label, x + 15, y + 25);
+    pdf.text(label, x + 14, y + 24);
   }
 
-  function drawCard(pdf, x, y, w, item, index) {
-    const h = 60;
+  function drawSerialItemCard(pdf, x, y, width, height, item, itemNumber) {
+    const serial = String((item && item["Serial No"]) || "");
+    const brand = String((item && item["Brand Name"]) || "Collection");
 
-    // SHADOW
+    /* subtle shadow */
     pdf.setFillColor(0, 0, 0);
-    pdf.setGState(new pdf.GState({ opacity: 0.05 }));
-    pdf.roundedRect(x + 4, y + 4, w, h, 12, 12, "F");
+    pdf.setGState(new pdf.GState({ opacity: 0.08 }));
+    pdf.rect(x + 3, y + 3, width, height, "F");
     pdf.setGState(new pdf.GState({ opacity: 1 }));
 
-    // CARD
     pdf.setFillColor(255, 255, 255);
     pdf.setDrawColor(210, 210, 210);
-    pdf.roundedRect(x, y, w, h, 12, 12, "FD");
+    pdf.roundedRect(x, y, width, height, 12, 12, "FD");
 
-    // NUMBER BADGE
-    pdf.setFillColor(150, 90, 60);
-    pdf.roundedRect(x + 10, y + 15, 40, 30, 8, 8, "F");
-
+    pdf.setFillColor(157, 92, 63);
+    pdf.roundedRect(x + 10, y + 12, 48, 30, 9, 9, "F");
     pdf.setTextColor(255, 255, 255);
+    pdf.setFont("helvetica", "bold");
     pdf.setFontSize(10);
-    pdf.text(`#${index}`, x + 20, y + 35);
+    pdf.text(`#${itemNumber}`, x + 22, y + 31);
 
-    // TEXT
-    pdf.setTextColor(20, 20, 20);
+    pdf.setTextColor(31, 35, 40);
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(13);
-    pdf.text(String(item["Serial No"] || ""), x + 60, y + 28);
+    pdf.text(serial, x + 70, y + 26, { maxWidth: width - 80 });
 
+    pdf.setTextColor(104, 110, 121);
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.setTextColor(120, 120, 120);
-    pdf.text(String(item["Brand Name"] || ""), x + 60, y + 45);
+    pdf.setFontSize(9);
+    pdf.text(brand, x + 70, y + 40, { maxWidth: width - 80 });
   }
 
-  /* ---------- MAIN BUILDER ---------- */
   async function buildPdfBlob(options) {
-    const pageBlobs = options.pageBlobs || [];
-    const items = options.items || [];
-    const title = options.title || "Jewellery Catalogue";
+    const pageBlobs = Array.isArray(options && options.pageBlobs) ? options.pageBlobs : [];
+    const items = Array.isArray(options && options.items) ? options.items : [];
+    const title = String((options && options.title) || "Jewellery Tray");
 
-    if (!pageBlobs.length) throw new Error("No pages");
+    if (!pageBlobs.length) {
+      throw new Error("Generate pages first");
+    }
 
-    const jsPdfApi = window.jspdf?.jsPDF;
-    if (!jsPdfApi) throw new Error("jsPDF missing");
+    const jsPdfApi = window.jspdf && window.jspdf.jsPDF;
+    if (!jsPdfApi) {
+      throw new Error("PDF library not loaded");
+    }
 
     const pdf = new jsPdfApi({
       orientation: "portrait",
       unit: "pt",
-      format: [1080, 1920] // MOBILE OPTIMIZED
+      format: [1080, 1920]
     });
 
-    const w = pdf.internal.pageSize.getWidth();
-    const h = pdf.internal.pageSize.getHeight();
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 0;
 
-    const rows = buildRows(items);
-    const summaryPages = paginate(rows, h);
-    const totalPages = 1 + pageBlobs.length + summaryPages.length;
+    const totalItems = items.length || pageBlobs.length * 6;
+    const compactMode = totalItems > 300;
 
-    /* COVER */
-    await drawCoverPage(pdf, w, h, title, totalPages, pageBlobs[0], items.length);
+    const groupedRows = buildTypeGroupedRows(items);
+    const groupedPagination = paginateGroupedRows(groupedRows, pageHeight, margin);
+    const summaryPages = groupedPagination.pages.length;
+    const totalPages = 1 + pageBlobs.length + summaryPages;
 
-    /* IMAGE PAGES */
-    for (let i = 0; i < pageBlobs.length; i++) {
+    await drawCoverPage(pdf, pageWidth, pageHeight, margin, title, totalPages, pageBlobs[0], totalItems);
+    drawFooter(pdf, pageWidth, pageHeight, margin);
+
+    for (let index = 0; index < pageBlobs.length; index++) {
       pdf.addPage();
 
-      const img = await blobToDataUrl(pageBlobs[i]);
-      pdf.addImage(img, "PNG", 0, 0, w, h, undefined, "FAST");
+      /* fill entire page with 6-section grid image (no inset margin) */
+      const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
+      pdf.addImage(imageDataUrl, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
 
-      // subtle overlay
+      /* subtle overlay for richness */
       pdf.setFillColor(0, 0, 0);
       pdf.setGState(new pdf.GState({ opacity: 0.08 }));
-      pdf.rect(0, 0, w, h, "F");
+      pdf.rect(0, 0, pageWidth, pageHeight, "F");
       pdf.setGState(new pdf.GState({ opacity: 1 }));
 
-      pdf.setFontSize(10);
-      pdf.setTextColor(180, 180, 180);
-      pdf.text(`${i + 1}/${pageBlobs.length}`, w - 20, h - 20, { align: "right" });
+      /* small page-number badge bottom-right */
+      const badgeLabel = `${index + 1} / ${pageBlobs.length}`;
+      pdf.setFontSize(8);
+      pdf.setFont("helvetica", "normal");
+      pdf.setTextColor(160, 148, 136);
+      pdf.text(badgeLabel, pageWidth - 8, pageHeight - 8, { align: "right" });
     }
 
-    /* SERIAL PAGES */
-    let count = 0;
-
-    for (let p = 0; p < summaryPages.length; p++) {
+    for (let summaryIndex = 0; summaryIndex < summaryPages; summaryIndex++) {
       pdf.addPage();
+      drawPageTexture(pdf, pageWidth, pageHeight);
+      const pageNumber = 1 + pageBlobs.length + summaryIndex + 1;
+      drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, "Serial reference sheet");
+      drawOrnaments(pdf, pageWidth, pageHeight);
 
-      drawPageTexture(pdf, w, h);
-      drawHeader(pdf, w, title, pageBlobs.length + p + 2, totalPages, "Serial Reference");
+      pdf.setTextColor(30, 30, 30);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.text("Serial Codes", margin, margin + 90);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.setTextColor(96, 103, 116);
+      pdf.text("Grouped by type with premium spacing for clean presentation.", margin, margin + 107);
 
-      let y = 120;
+      const rowsForPage = groupedPagination.pages[summaryIndex] || [];
+      const metrics = groupedPagination.metrics;
+      const cardWidth = pageWidth - margin * 2;
+      let y = metrics.topY;
+      let itemNumber = 0;
 
-      summaryPages[p].forEach(r => {
-        if (r.kind === "section") {
-          drawSection(pdf, 40, y, w - 80, r.label);
-          y += 50;
-        } else {
-          count++;
-          drawCard(pdf, 40, y, w - 80, r.item, count);
-          y += 70;
+      for (let pageIdx = 0; pageIdx < summaryIndex; pageIdx++) {
+        const rows = groupedPagination.pages[pageIdx] || [];
+        rows.forEach(r => {
+          if (r.kind === "item") {
+            itemNumber += 1;
+          }
+        });
+      }
+
+      rowsForPage.forEach(row => {
+        if (row.kind === "section") {
+          drawSerialSectionHeader(pdf, margin, y, cardWidth, row.label);
+          y += metrics.sectionH + metrics.sectionGap;
+          return;
         }
+
+        itemNumber += 1;
+        drawSerialItemCard(pdf, margin, y, cardWidth, metrics.cardH, row.item, itemNumber);
+        y += metrics.cardH + metrics.cardGap;
       });
+
+      drawFooter(pdf, pageWidth, pageHeight, margin);
     }
 
     return pdf.output("blob");
   }
 
   window.JewelleryPdf = {
-    buildPdfBlob
+    buildPdfBlob: buildPdfBlob
   };
 })();
