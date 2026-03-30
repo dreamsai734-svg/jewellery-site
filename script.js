@@ -601,6 +601,7 @@ async function buildCollageBlobOnServer(selectedIds) {
     method: "POST",
     body: JSON.stringify({ action: "buildCollage", selected: selectedIds })
   });
+  console.log("ytial", response);
 
   if (!response.ok) {
     throw new Error(`Server returned ${response.status}`);
