@@ -281,86 +281,239 @@
     pdf.text(brand, x + 70, y + 40, { maxWidth: width - 80 });
   }
 
+  // async function buildPdfBlob(options) {
+  //   const pageBlobs = Array.isArray(options && options.pageBlobs) ? options.pageBlobs : [];
+  //   const items = Array.isArray(options && options.items) ? options.items : [];
+  //   const title = String((options && options.title) || "Jewellery Tray");
+
+  //   if (!pageBlobs.length) {
+  //     throw new Error("Generate pages first");
+  //   }
+
+  //   const jsPdfApi = window.jspdf && window.jspdf.jsPDF;
+  //   if (!jsPdfApi) {
+  //     throw new Error("PDF library not loaded");
+  //   }
+
+  //   const pdf = new jsPdfApi({
+  //     orientation: "portrait",
+  //     unit: "pt",
+  //     format: "a4"
+  //   });
+
+  //   const pageWidth = pdf.internal.pageSize.getWidth();
+  //   const pageHeight = pdf.internal.pageSize.getHeight();
+  //   const margin = 26;
+
+  //   const totalItems = items.length || pageBlobs.length * 6;
+  //   const compactMode = totalItems > 300;
+
+  //   const groupedRows = buildTypeGroupedRows(items);
+  //   const groupedPagination = paginateGroupedRows(groupedRows, pageHeight, margin);
+  //   const summaryPages = groupedPagination.pages.length;
+  //   const totalPages = 1 + pageBlobs.length + summaryPages;
+
+  //   await drawCoverPage(pdf, pageWidth, pageHeight, margin, title, totalPages, pageBlobs[0], totalItems);
+  //   drawFooter(pdf, pageWidth, pageHeight, margin);
+
+  //   for (let index = 0; index < pageBlobs.length; index++) {
+  //     pdf.addPage();
+
+  //     /* fill entire page with 6-section grid image (no inset margin) */
+  //     const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
+  //     pdf.addImage(imageDataUrl, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
+
+  //     /* small page-number badge bottom-right */
+  //     const badgeLabel = `${index + 1} / ${pageBlobs.length}`;
+  //     pdf.setFontSize(8);
+  //     pdf.setFont("helvetica", "normal");
+  //     pdf.setTextColor(160, 148, 136);
+  //     pdf.text(badgeLabel, pageWidth - 8, pageHeight - 8, { align: "right" });
+  //   }
+
+  //   for (let summaryIndex = 0; summaryIndex < summaryPages; summaryIndex++) {
+  //     pdf.addPage();
+  //     drawPageTexture(pdf, pageWidth, pageHeight);
+  //     const pageNumber = 1 + pageBlobs.length + summaryIndex + 1;
+  //     drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, "Serial reference sheet");
+  //     drawOrnaments(pdf, pageWidth, pageHeight);
+
+  //     pdf.setTextColor(30, 30, 30);
+  //     pdf.setFont("helvetica", "bold");
+  //     pdf.setFontSize(16);
+  //     pdf.text("Serial Codes", margin, margin + 90);
+  //     pdf.setFont("helvetica", "normal");
+  //     pdf.setFontSize(10);
+  //     pdf.setTextColor(96, 103, 116);
+  //     pdf.text("Grouped by type with premium spacing for clean presentation.", margin, margin + 107);
+
+  //     const rowsForPage = groupedPagination.pages[summaryIndex] || [];
+  //     const metrics = groupedPagination.metrics;
+  //     const cardWidth = pageWidth - margin * 2;
+  //     let y = metrics.topY;
+  //     let itemNumber = 0;
+
+  //     for (let pageIdx = 0; pageIdx < summaryIndex; pageIdx++) {
+  //       const rows = groupedPagination.pages[pageIdx] || [];
+  //       rows.forEach(r => {
+  //         if (r.kind === "item") {
+  //           itemNumber += 1;
+  //         }
+  //       });
+  //     }
+
+  //     rowsForPage.forEach(row => {
+  //       if (row.kind === "section") {
+  //         drawSerialSectionHeader(pdf, margin, y, cardWidth, row.label);
+  //         y += metrics.sectionH + metrics.sectionGap;
+  //         return;
+  //       }
+
+  //       itemNumber += 1;
+  //       drawSerialItemCard(pdf, margin, y, cardWidth, metrics.cardH, row.item, itemNumber);
+  //       y += metrics.cardH + metrics.cardGap;
+  //     });
+
+  //     drawFooter(pdf, pageWidth, pageHeight, margin);
+  //   }
+
+  //   return pdf.output("blob");
+  // }
+
   async function buildPdfBlob(options) {
-    const pageBlobs = Array.isArray(options && options.pageBlobs) ? options.pageBlobs : [];
-    const items = Array.isArray(options && options.items) ? options.items : [];
-    const title = String((options && options.title) || "Jewellery Tray");
+  const pageBlobs = Array.isArray(options?.pageBlobs) ? options.pageBlobs : [];
+  const items = Array.isArray(options?.items) ? options.items : [];
+  const title = String(options?.title || "Jewellery Tray");
 
-    if (!pageBlobs.length) {
-      throw new Error("Generate pages first");
-    }
+  if (!pageBlobs.length) {
+    throw new Error("Generate pages first");
+  }
 
-    const jsPdfApi = window.jspdf && window.jspdf.jsPDF;
-    if (!jsPdfApi) {
-      throw new Error("PDF library not loaded");
-    }
+  const jsPdfApi = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPdfApi) {
+    throw new Error("PDF library not loaded");
+  }
 
-    const pdf = new jsPdfApi({
-      orientation: "portrait",
-      unit: "pt",
-      format: "a4"
+  const pdf = new jsPdfApi({
+    orientation: "portrait",
+    unit: "pt",
+    format: "a4"
+  });
+
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 26;
+
+  const totalItems = items.length > 0 ? items.length : pageBlobs.length * 6;
+
+  // ---- GROUPING + PAGINATION ----
+  const groupedRows = buildTypeGroupedRows(items);
+  const groupedPagination = paginateGroupedRows(groupedRows, pageHeight, margin);
+
+  const summaryPages = groupedPagination.pages.length;
+  const totalPages = 1 + pageBlobs.length + summaryPages;
+
+  // ---- COVER PAGE ----
+  await drawCoverPage(
+    pdf,
+    pageWidth,
+    pageHeight,
+    margin,
+    title,
+    totalPages,
+    pageBlobs[0],
+    totalItems
+  );
+  drawFooter(pdf, pageWidth, pageHeight, margin);
+
+  // ---- PRECOMPUTE ITEM OFFSETS (O(n)) ----
+  const itemOffsets = [];
+  let runningCount = 0;
+
+  groupedPagination.pages.forEach((rows, i) => {
+    itemOffsets[i] = runningCount;
+    rows.forEach(r => {
+      if (r.kind === "item") runningCount++;
     });
+  });
 
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 26;
+  // ---- IMAGE PAGE RENDERING (BATCHED) ----
+  const batchSize = 10;
 
-    const totalItems = items.length || pageBlobs.length * 6;
-    const compactMode = totalItems > 300;
+  for (let i = 0; i < pageBlobs.length; i += batchSize) {
+    const batch = pageBlobs.slice(i, i + batchSize);
 
-    const groupedRows = buildTypeGroupedRows(items);
-    const groupedPagination = paginateGroupedRows(groupedRows, pageHeight, margin);
-    const summaryPages = groupedPagination.pages.length;
-    const totalPages = 1 + pageBlobs.length + summaryPages;
+    const imageDataUrls = await Promise.all(
+      batch.map(blob => blobToDataUrl(blob))
+    );
 
-    await drawCoverPage(pdf, pageWidth, pageHeight, margin, title, totalPages, pageBlobs[0], totalItems);
-    drawFooter(pdf, pageWidth, pageHeight, margin);
+    imageDataUrls.forEach((imageDataUrl, j) => {
+      const index = i + j;
 
-    for (let index = 0; index < pageBlobs.length; index++) {
       pdf.addPage();
+      pdf.addImage(
+        imageDataUrl,
+        "PNG",
+        0,
+        0,
+        pageWidth,
+        pageHeight,
+        undefined,
+        "FAST"
+      );
 
-      /* fill entire page with 6-section grid image (no inset margin) */
-      const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
-      pdf.addImage(imageDataUrl, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
-
-      /* small page-number badge bottom-right */
       const badgeLabel = `${index + 1} / ${pageBlobs.length}`;
       pdf.setFontSize(8);
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(160, 148, 136);
-      pdf.text(badgeLabel, pageWidth - 8, pageHeight - 8, { align: "right" });
-    }
+      pdf.text(badgeLabel, pageWidth - 8, pageHeight - 8, {
+        align: "right"
+      });
+    });
+  }
 
-    for (let summaryIndex = 0; summaryIndex < summaryPages; summaryIndex++) {
+  // ---- SUMMARY PAGES ----
+  for (let summaryIndex = 0; summaryIndex < summaryPages; summaryIndex++) {
+    try {
       pdf.addPage();
+
       drawPageTexture(pdf, pageWidth, pageHeight);
-      const pageNumber = 1 + pageBlobs.length + summaryIndex + 1;
-      drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, "Serial reference sheet");
+
+      const pageNumber = 2 + pageBlobs.length + summaryIndex;
+
+      drawHeader(
+        pdf,
+        pageWidth,
+        margin,
+        title,
+        pageNumber,
+        totalPages,
+        "Serial reference sheet"
+      );
+
       drawOrnaments(pdf, pageWidth, pageHeight);
 
       pdf.setTextColor(30, 30, 30);
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
       pdf.text("Serial Codes", margin, margin + 90);
+
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(10);
       pdf.setTextColor(96, 103, 116);
-      pdf.text("Grouped by type with premium spacing for clean presentation.", margin, margin + 107);
+      pdf.text(
+        "Grouped by type with premium spacing for clean presentation.",
+        margin,
+        margin + 107
+      );
 
       const rowsForPage = groupedPagination.pages[summaryIndex] || [];
       const metrics = groupedPagination.metrics;
+
       const cardWidth = pageWidth - margin * 2;
       let y = metrics.topY;
-      let itemNumber = 0;
 
-      for (let pageIdx = 0; pageIdx < summaryIndex; pageIdx++) {
-        const rows = groupedPagination.pages[pageIdx] || [];
-        rows.forEach(r => {
-          if (r.kind === "item") {
-            itemNumber += 1;
-          }
-        });
-      }
+      let itemNumber = itemOffsets[summaryIndex] || 0;
 
       rowsForPage.forEach(row => {
         if (row.kind === "section") {
@@ -370,15 +523,28 @@
         }
 
         itemNumber += 1;
-        drawSerialItemCard(pdf, margin, y, cardWidth, metrics.cardH, row.item, itemNumber);
+
+        drawSerialItemCard(
+          pdf,
+          margin,
+          y,
+          cardWidth,
+          metrics.cardH,
+          row.item,
+          itemNumber
+        );
+
         y += metrics.cardH + metrics.cardGap;
       });
 
       drawFooter(pdf, pageWidth, pageHeight, margin);
+    } catch (err) {
+      console.error(`Summary page ${summaryIndex} failed`, err);
     }
-
-    return pdf.output("blob");
   }
+
+  return pdf.output("blob");
+}
 
   window.JewelleryPdf = {
     buildPdfBlob: buildPdfBlob
