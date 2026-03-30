@@ -9,6 +9,20 @@ let lastPdfUrl = "";
 
 const API_URL = "https://script.google.com/macros/s/AKfycbxR-98U3MLMyvwhaFBF8XavgLMo9L6tnhUkH55fo4JDvgnckxCYBl9s8xIBBfUUO_U/exec";
 
+function escapeHtml(str) {
+  return String(str || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function safeUrl(url) {
+  const s = String(url || "");
+  return (s.startsWith("https://") || s.startsWith("http://")) ? s : "";
+}
+
 /* FETCH DATA */
 loadData();
 
@@ -18,15 +32,26 @@ async function loadData() {
     hideMarkedNode.checked = true;
   }
 
-  const res = await fetch(API_URL);
-  const json = await res.json();
-  data = Array.isArray(json) ? json : (json.data || []);
-  selected = selected.filter(id => {
-    const item = data.find(d => d["Serial No"] === id);
-    return item && normalizeStatus(item["Status"]) !== "marked";
-  });
-  initFilter();
-  render();
+  try {
+    const res = await fetch(API_URL);
+    if (!res.ok) {
+      throw new Error(`Server responded with ${res.status}`);
+    }
+    const json = await res.json();
+    data = Array.isArray(json) ? json : (json.data || []);
+    selected = selected.filter(id => {
+      const item = data.find(d => d["Serial No"] === id);
+      return item && normalizeStatus(item["Status"]) !== "marked";
+    });
+    initFilter();
+    render();
+  } catch (err) {
+    console.error("Failed to load catalogue data:", err);
+    const summary = document.getElementById("gridSummary");
+    if (summary) {
+      summary.textContent = "Failed to load catalogue. Please refresh.";
+    }
+  }
 }
 
 function normalizeStatus(status) {
@@ -57,7 +82,7 @@ function initFilter() {
   let filter = document.getElementById("filterType");
 
   filter.innerHTML = '<option value="">All</option>' +
-    types.map(t => `<option value="${t}">${t}</option>`).join("");
+    types.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
 }
 
 function updateDashboardStats(visibleCount) {
@@ -114,9 +139,9 @@ function render() {
     let isSelected = selected.includes(item["Serial No"]);
 
     html += `
-      <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" onclick='toggle("${item["Serial No"]}")'>
-        <img src="${item["DisplayURL"]}">
-        <p>${item["Serial No"]}</p>
+      <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" data-serial="${escapeHtml(item["Serial No"])}">
+        <img src="${safeUrl(item["DisplayURL"])}" alt="${escapeHtml(item["Serial No"])}">
+        <p>${escapeHtml(item["Serial No"])}</p>
         ${status === "marked" ? '<p class="marked-label">Marked</p>' : ''}
       </div>
     `;
@@ -156,8 +181,8 @@ function renderSelected() {
   area.innerHTML = selectedItems
     .map(item => `
       <div class="selection-card">
-        <img src="${item["DisplayURL"]}" alt="${item["Serial No"]}">
-        <p>${item["Serial No"]}</p>
+        <img src="${safeUrl(item["DisplayURL"])}" alt="${escapeHtml(item["Serial No"])}">
+        <p>${escapeHtml(item["Serial No"])}</p>
       </div>
     `).join("");
 }
@@ -796,17 +821,11 @@ async function buildCollageBlob(items) {
   const cellW = Math.floor(W / COLS);
   const cellH = Math.floor(H / ROWS);
 
-  // ---- HiDPI support (sharper output) ----
-  const dpr = window.devicePixelRatio || 1;
-
   const canvas = document.createElement("canvas");
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  canvas.style.width = `${W}px`;
-  canvas.style.height = `${H}px`;
+  canvas.width = W;
+  canvas.height = H;
 
   const ctx = canvas.getContext("2d");
-  ctx.scale(dpr, dpr);
 
   // background
   ctx.fillStyle = "#ffffff";
@@ -1040,3 +1059,10 @@ async function trimOuterWhitespaceOnly(blob) {
     img.src = url;
   });
 }
+
+document.getElementById("grid").addEventListener("click", function (e) {
+  const card = e.target.closest(".card[data-serial]");
+  if (card) {
+    toggle(card.dataset.serial);
+  }
+});
