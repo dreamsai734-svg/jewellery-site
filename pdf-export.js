@@ -16,35 +16,79 @@
     });
   }
 
+  // function drawGoldAccentLine(pdf, x, y, width) {
+  //   pdf.setDrawColor(191, 150, 95);
+  //   pdf.setLineWidth(1.1);
+  //   pdf.line(x, y, x + width, y);
+  //   pdf.setDrawColor(232, 205, 163);
+  //   pdf.setLineWidth(0.45);
+  //   pdf.line(x, y + 2, x + width, y + 2);
+  // }
+
   function drawGoldAccentLine(pdf, x, y, width) {
-    pdf.setDrawColor(191, 150, 95);
-    pdf.setLineWidth(1.1);
-    pdf.line(x, y, x + width, y);
-    pdf.setDrawColor(232, 205, 163);
-    pdf.setLineWidth(0.45);
-    pdf.line(x, y + 2, x + width, y + 2);
-  }
+  pdf.setDrawColor(176, 138, 82); // deeper gold
+  pdf.setLineWidth(1.4);
+  pdf.line(x, y, x + width, y);
+
+  pdf.setDrawColor(224, 198, 150); // highlight line
+  pdf.setLineWidth(0.5);
+  pdf.line(x, y + 2, x + width, y + 2);
+
+  pdf.setDrawColor(255, 240, 210); // subtle glow
+  pdf.setLineWidth(0.2);
+  pdf.line(x, y + 3, x + width, y + 3);
+}
+
+  // function drawPageTexture(pdf, pageWidth, pageHeight) {
+  //   pdf.setFillColor(244, 237, 227);
+  //   pdf.rect(0, 0, pageWidth, pageHeight, "F");
+
+  //   pdf.setFillColor(235, 224, 209);
+  //   pdf.roundedRect(20, 20, pageWidth - 40, pageHeight - 40, 30, 30, "F");
+
+  //   pdf.setFillColor(250, 245, 238);
+  //   pdf.roundedRect(30, 30, pageWidth - 60, pageHeight - 60, 24, 24, "F");
+
+  //   pdf.setDrawColor(214, 186, 149);
+  //   pdf.setLineWidth(1.1);
+  //   pdf.roundedRect(40, 40, pageWidth - 80, pageHeight - 80, 20, 20, "S");
+
+  //   pdf.setDrawColor(233, 224, 213);
+  //   pdf.setLineWidth(0.4);
+  //   for (let y = 48; y < pageHeight - 42; y += 20) {
+  //     pdf.line(48, y, pageWidth - 48, y);
+  //   }
+  // }
 
   function drawPageTexture(pdf, pageWidth, pageHeight) {
-    pdf.setFillColor(244, 237, 227);
-    pdf.rect(0, 0, pageWidth, pageHeight, "F");
+  // base
+  pdf.setFillColor(242, 234, 222);
+  pdf.rect(0, 0, pageWidth, pageHeight, "F");
 
-    pdf.setFillColor(235, 224, 209);
-    pdf.roundedRect(20, 20, pageWidth - 40, pageHeight - 40, 30, 30, "F");
+  // outer soft layer
+  pdf.setFillColor(232, 220, 202);
+  pdf.roundedRect(18, 18, pageWidth - 36, pageHeight - 36, 32, 32, "F");
 
-    pdf.setFillColor(250, 245, 238);
-    pdf.roundedRect(30, 30, pageWidth - 60, pageHeight - 60, 24, 24, "F");
+  // inner premium sheet
+  pdf.setFillColor(252, 248, 242);
+  pdf.roundedRect(28, 28, pageWidth - 56, pageHeight - 56, 24, 24, "F");
 
-    pdf.setDrawColor(214, 186, 149);
-    pdf.setLineWidth(1.1);
-    pdf.roundedRect(40, 40, pageWidth - 80, pageHeight - 80, 20, 20, "S");
+  // double border (royal style)
+  pdf.setDrawColor(200, 170, 130);
+  pdf.setLineWidth(1.2);
+  pdf.roundedRect(38, 38, pageWidth - 76, pageHeight - 76, 18, 18, "S");
 
-    pdf.setDrawColor(233, 224, 213);
-    pdf.setLineWidth(0.4);
-    for (let y = 48; y < pageHeight - 42; y += 20) {
-      pdf.line(48, y, pageWidth - 48, y);
-    }
+  pdf.setDrawColor(235, 215, 190);
+  pdf.setLineWidth(0.5);
+  pdf.roundedRect(44, 44, pageWidth - 88, pageHeight - 88, 14, 14, "S");
+
+  // subtle horizontal texture lines
+  pdf.setDrawColor(236, 226, 210);
+  pdf.setLineWidth(0.3);
+  for (let y = 52; y < pageHeight - 48; y += 18) {
+    pdf.line(52, y, pageWidth - 52, y);
   }
+}
 
   function drawGemMotif(pdf, x, y, size, fill, stroke) {
     const half = size / 2;
@@ -77,40 +121,96 @@
     pdf.line(100, pageHeight - 110, 56, pageHeight - 66);
   }
 
-  function drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, sectionLabel) {
-    pdf.setFillColor(18, 24, 40);
-    pdf.roundedRect(margin, margin, pageWidth - margin * 2, 64, 16, 16, "F");
-    drawGoldAccentLine(pdf, margin + 14, margin + 48, pageWidth - margin * 2 - 28);
+  // function drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, sectionLabel) {
+  //   pdf.setFillColor(18, 24, 40);
+  //   pdf.roundedRect(margin, margin, pageWidth - margin * 2, 64, 16, 16, "F");
+  //   drawGoldAccentLine(pdf, margin + 14, margin + 48, pageWidth - margin * 2 - 28);
 
-    pdf.setFillColor(191, 150, 95);
-    pdf.roundedRect(pageWidth - margin - 108, margin + 12, 92, 20, 8, 8, "F");
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(21);
-    pdf.text(title, margin + 18, margin + 27);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.text(sectionLabel, margin + 18, margin + 57);
-    pdf.setTextColor(35, 27, 14);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(9);
-    pdf.text("ROYAL EDITION", pageWidth - margin - 99, margin + 25);
-    pdf.setTextColor(255, 255, 255);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-    pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin - 76, margin + 57);
-  }
+  //   pdf.setFillColor(191, 150, 95);
+  //   pdf.roundedRect(pageWidth - margin - 108, margin + 12, 92, 20, 8, 8, "F");
+  //   pdf.setTextColor(255, 255, 255);
+  //   pdf.setFont("helvetica", "bold");
+  //   pdf.setFontSize(21);
+  //   pdf.text(title, margin + 18, margin + 27);
+  //   pdf.setFont("helvetica", "normal");
+  //   pdf.setFontSize(10);
+  //   pdf.text(sectionLabel, margin + 18, margin + 57);
+  //   pdf.setTextColor(35, 27, 14);
+  //   pdf.setFont("helvetica", "bold");
+  //   pdf.setFontSize(9);
+  //   pdf.text("ROYAL EDITION", pageWidth - margin - 99, margin + 25);
+  //   pdf.setTextColor(255, 255, 255);
+  //   pdf.setFont("helvetica", "normal");
+  //   pdf.setFontSize(10);
+  //   pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin - 76, margin + 57);
+  // }
+
+  function drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, sectionLabel) {
+  // deep royal bar
+  pdf.setFillColor(12, 18, 36);
+  pdf.roundedRect(margin, margin, pageWidth - margin * 2, 70, 18, 18, "F");
+
+  drawGoldAccentLine(pdf, margin + 16, margin + 52, pageWidth - margin * 2 - 32);
+
+  // badge
+  pdf.setFillColor(176, 138, 82);
+  pdf.roundedRect(pageWidth - margin - 120, margin + 14, 100, 24, 10, 10, "F");
+
+  // title
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(22);
+  pdf.text(title, margin + 20, margin + 30);
+
+  // subtitle
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(10);
+  pdf.text(sectionLabel.toUpperCase(), margin + 20, margin + 62);
+
+  // badge text
+  pdf.setTextColor(35, 27, 14);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(9);
+  pdf.text("ROYAL CATALOGUE", pageWidth - margin - 108, margin + 30);
+
+  // page number
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(10);
+  pdf.text(`Page ${pageNumber} / ${totalPages}`, pageWidth - margin - 82, margin + 62);
+}
+
+  // function drawFooter(pdf, pageWidth, pageHeight, margin) {
+  //   drawGoldAccentLine(pdf, margin, pageHeight - margin - 14, pageWidth - margin * 2);
+  //   pdf.setTextColor(89, 84, 78);
+  //   pdf.setFont("helvetica", "normal");
+  //   pdf.setFontSize(9);
+  //   pdf.text("Prepared for premium client presentation and WhatsApp sharing", margin, pageHeight - margin + 4);
+  //   pdf.setTextColor(122, 97, 70);
+  //   pdf.setFont("helvetica", "bold");
+  //   pdf.text("Jewellery PDF Studio", pageWidth - margin, pageHeight - margin + 4, { align: "right" });
+  // }
 
   function drawFooter(pdf, pageWidth, pageHeight, margin) {
-    drawGoldAccentLine(pdf, margin, pageHeight - margin - 14, pageWidth - margin * 2);
-    pdf.setTextColor(89, 84, 78);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9);
-    pdf.text("Prepared for premium client presentation and WhatsApp sharing", margin, pageHeight - margin + 4);
-    pdf.setTextColor(122, 97, 70);
-    pdf.setFont("helvetica", "bold");
-    pdf.text("Jewellery PDF Studio", pageWidth - margin, pageHeight - margin + 4, { align: "right" });
-  }
+  drawGoldAccentLine(pdf, margin, pageHeight - margin - 16, pageWidth - margin * 2);
+
+  pdf.setTextColor(110, 100, 90);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.text(
+    "Confidential luxury catalogue • For private client viewing only",
+    margin,
+    pageHeight - margin + 2
+  );
+
+  pdf.setTextColor(140, 110, 80);
+  pdf.setFont("helvetica", "bold");
+  pdf.text(
+    "Jewellery PDF Studio",
+    pageWidth - margin,
+    pageHeight - margin + 2,
+    { align: "right" }
+  );
+}
 
   async function drawCoverPage(pdf, pageWidth, pageHeight, margin, title, totalPages, firstBlob, itemCount) {
     drawPageTexture(pdf, pageWidth, pageHeight);
@@ -286,48 +386,68 @@
     };
   }
 
+  // function drawSerialSectionHeader(pdf, x, y, width, label) {
+  //   pdf.setFillColor(248, 238, 225);
+  //   pdf.setDrawColor(206, 170, 126);
+  //   pdf.setLineWidth(0.9);
+  //   pdf.roundedRect(x, y, width, 38, 12, 12, "FD");
+  //   drawGoldAccentLine(pdf, x + 12, y + 29, width - 24);
+
+  //   pdf.setTextColor(98, 62, 34);
+  //   pdf.setFont("helvetica", "bold");
+  //   pdf.setFontSize(13);
+  //   pdf.text(label, x + 14, y + 24);
+  // }
+
   function drawSerialSectionHeader(pdf, x, y, width, label) {
-    pdf.setFillColor(248, 238, 225);
-    pdf.setDrawColor(206, 170, 126);
-    pdf.setLineWidth(0.9);
-    pdf.roundedRect(x, y, width, 38, 12, 12, "FD");
-    drawGoldAccentLine(pdf, x + 12, y + 29, width - 24);
+  pdf.setFillColor(250, 240, 226);
+  pdf.setDrawColor(190, 155, 110);
+  pdf.setLineWidth(1);
+  pdf.roundedRect(x, y, width, 40, 14, 14, "FD");
 
-    pdf.setTextColor(98, 62, 34);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13);
-    pdf.text(label, x + 14, y + 24);
-  }
+  // inner border
+  pdf.setDrawColor(230, 205, 170);
+  pdf.setLineWidth(0.5);
+  pdf.roundedRect(x + 6, y + 6, width - 12, 28, 10, 10, "S");
 
-  function drawSerialItemCard(pdf, x, y, width, height, item, itemNumber) {
-    const serial = String((item && item["Serial No"]) || "");
-    const brand = String((item && item["Brand Name"]) || "Collection");
+  drawGoldAccentLine(pdf, x + 16, y + 30, width - 32);
 
-    pdf.setFillColor(255, 252, 246);
-    pdf.setDrawColor(221, 198, 169);
-    pdf.setLineWidth(0.8);
-    pdf.roundedRect(x, y, width, height, 12, 12, "FD");
-    pdf.setDrawColor(236, 219, 197);
-    pdf.setLineWidth(0.4);
-    pdf.roundedRect(x + 6, y + 6, width - 12, height - 12, 8, 8, "S");
+  pdf.setTextColor(90, 55, 30);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(13);
+  pdf.text(label.toUpperCase(), x + 16, y + 25);
+}
 
-    pdf.setFillColor(173, 128, 77);
-    pdf.roundedRect(x + 10, y + 12, 48, 30, 9, 9, "F");
-    pdf.setTextColor(34, 23, 12);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(10);
-    pdf.text(`#${itemNumber}`, x + 22, y + 31);
 
-    pdf.setTextColor(30, 30, 34);
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13);
-    pdf.text(serial, x + 70, y + 26, { maxWidth: width - 80 });
+  // function drawSerialItemCard(pdf, x, y, width, height, item, itemNumber) {
+  //   const serial = String((item && item["Serial No"]) || "");
+  //   const brand = String((item && item["Brand Name"]) || "Collection");
 
-    pdf.setTextColor(107, 93, 76);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9);
-    pdf.text(brand, x + 70, y + 40, { maxWidth: width - 80 });
-  }
+  //   pdf.setFillColor(255, 252, 246);
+  //   pdf.setDrawColor(221, 198, 169);
+  //   pdf.setLineWidth(0.8);
+  //   pdf.roundedRect(x, y, width, height, 12, 12, "FD");
+  //   pdf.setDrawColor(236, 219, 197);
+  //   pdf.setLineWidth(0.4);
+  //   pdf.roundedRect(x + 6, y + 6, width - 12, height - 12, 8, 8, "S");
+
+  //   pdf.setFillColor(173, 128, 77);
+  //   pdf.roundedRect(x + 10, y + 12, 48, 30, 9, 9, "F");
+  //   pdf.setTextColor(34, 23, 12);
+  //   pdf.setFont("helvetica", "bold");
+  //   pdf.setFontSize(10);
+  //   pdf.text(`#${itemNumber}`, x + 22, y + 31);
+
+  //   pdf.setTextColor(30, 30, 34);
+  //   pdf.setFont("helvetica", "bold");
+  //   pdf.setFontSize(13);
+  //   pdf.text(serial, x + 70, y + 26, { maxWidth: width - 80 });
+
+  //   pdf.setTextColor(107, 93, 76);
+  //   pdf.setFont("helvetica", "normal");
+  //   pdf.setFontSize(9);
+  //   pdf.text(brand, x + 70, y + 40, { maxWidth: width - 80 });
+  // }
 
   // async function buildPdfBlob(options) {
   //   const pageBlobs = Array.isArray(options && options.pageBlobs) ? options.pageBlobs : [];
@@ -427,6 +547,42 @@
 
   //   return pdf.output("blob");
   // }
+
+  function drawSerialItemCard(pdf, x, y, width, height, item, itemNumber) {
+  const serial = String(item?.["Serial No"] || "");
+  const brand = String(item?.["Brand Name"] || "Collection");
+
+  // outer card
+  pdf.setFillColor(255, 252, 246);
+  pdf.setDrawColor(210, 185, 150);
+  pdf.setLineWidth(1);
+  pdf.roundedRect(x, y, width, height, 14, 14, "FD");
+
+  // inner soft border
+  pdf.setDrawColor(235, 215, 190);
+  pdf.setLineWidth(0.5);
+  pdf.roundedRect(x + 6, y + 6, width - 12, height - 12, 10, 10, "S");
+
+  // number badge
+  pdf.setFillColor(160, 120, 70);
+  pdf.roundedRect(x + 12, y + 12, 50, 30, 10, 10, "F");
+
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(10);
+  pdf.text(`#${itemNumber}`, x + 25, y + 31);
+
+  // serial
+  pdf.setTextColor(28, 28, 32);
+  pdf.setFontSize(13);
+  pdf.text(serial, x + 72, y + 26, { maxWidth: width - 90 });
+
+  // brand
+  pdf.setTextColor(120, 100, 80);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(9);
+  pdf.text(brand, x + 72, y + 42);
+}
 
   async function buildPdfBlob(options) {
   const pageBlobs = Array.isArray(options?.pageBlobs) ? options.pageBlobs : [];
