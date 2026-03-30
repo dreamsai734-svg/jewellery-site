@@ -432,6 +432,8 @@ function selectAllByBrand() {
   }
 }
 
+window.selectAllByBrand = selectAllByBrand;
+
 function setSerialFeedback(message, isError) {
   const node = document.getElementById("serialFeedback");
   node.textContent = message;
