@@ -79,10 +79,15 @@ function switchTab(tabName) {
 function initFilter() {
   let types = [...new Set(data.map(d => d["Type"]).filter(Boolean))];
   types.sort((a, b) => String(a).localeCompare(String(b)));
-  let filter = document.getElementById("filterType");
-
-  filter.innerHTML = '<option value="">All</option>' +
+  const typeFilter = document.getElementById("filterType");
+  typeFilter.innerHTML = '<option value="">All Types</option>' +
     types.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+
+  let brands = [...new Set(data.map(d => String(d["Brand Name"] || "").trim()).filter(Boolean))];
+  brands.sort((a, b) => a.localeCompare(b));
+  const brandFilter = document.getElementById("filterBrand");
+  brandFilter.innerHTML = '<option value="">All Brands</option>' +
+    brands.map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`).join("");
 }
 
 function updateDashboardStats(visibleCount) {
@@ -106,14 +111,16 @@ function updateDashboardStats(visibleCount) {
 /* RENDER GRID */
 function render() {
   let filterType = document.getElementById("filterType").value;
+  let filterBrand = document.getElementById("filterBrand").value;
   let filterStatus = document.getElementById("filterStatus").value;
   let hideMarked = document.getElementById("hideMarked").checked;
 
   let filtered = data.filter(d => {
     const status = normalizeStatus(d["Status"]);
     const typeMatch = !filterType || d["Type"] === filterType;
+    const brandMatch = !filterBrand || String(d["Brand Name"] || "").trim() === filterBrand;
 
-    if (!typeMatch) {
+    if (!typeMatch || !brandMatch) {
       return false;
     }
 
@@ -388,6 +395,41 @@ function resolveItemsBySerials(serials) {
   });
 
   return items;
+}
+
+function selectAllByBrand() {
+  const brandValue = document.getElementById("filterBrand").value;
+  if (!brandValue) {
+    alert("Choose a brand from the Brand filter first, then click Select Whole Brand.");
+    return;
+  }
+
+  const toAdd = data.filter(d => {
+    const brand = String(d["Brand Name"] || "").trim();
+    return brand === brandValue && normalizeStatus(d["Status"]) !== "marked";
+  });
+
+  if (!toAdd.length) {
+    alert(`No unmarked items found for brand "${brandValue}".`);
+    return;
+  }
+
+  let addedCount = 0;
+  toAdd.forEach(item => {
+    const id = item["Serial No"];
+    if (!selected.includes(id)) {
+      selected.push(id);
+      addedCount++;
+    }
+  });
+
+  render();
+
+  if (addedCount === 0) {
+    alert(`All items from "${brandValue}" are already in your selection.`);
+  } else {
+    alert(`Added ${addedCount} item${addedCount === 1 ? "" : "s"} from "${brandValue}" to selection.`);
+  }
 }
 
 function setSerialFeedback(message, isError) {
