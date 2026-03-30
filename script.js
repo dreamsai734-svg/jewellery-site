@@ -272,6 +272,17 @@ async function generateFinalTrayFromSerials() {
   }
 }
 
+    setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${pageText}`, false);
+    alert(`Final tray PDF prepared for all entered serials. ${updatedCount} items marked in Excel.${pageText}`);
+  } catch (err) {
+    console.error(err);
+    setSerialFeedback(err.message || "Failed to prepare the final tray PDF", true);
+    alert("Error preparing the final tray PDF. Please check serial codes and try again.");
+  } finally {
+    showSpinner(false);
+  }
+}
+
 function parseSerialInput(rawText) {
   const chunks = String(rawText || "")
     .replace(/\r/g, "\n")
@@ -648,7 +659,7 @@ function loadImage(url) {
 }
 
 async function loadImageWithFallback(item) {
-  const urls = [item["CollageURL"], item["DisplayURL"]].filter(Boolean);
+  const urls = [item["CollageURL"]].filter(Boolean);
 
   for (const url of urls) {
     try {
@@ -658,7 +669,7 @@ async function loadImageWithFallback(item) {
     }
   }
 
-  throw new Error(`No accessible image for ${item["Serial No"]}. Both CollageURL and DisplayURL failed.`);
+  throw new Error(`No CORS-safe image source for ${item["Serial No"]}. CollageURL is missing or invalid.`);
 }
 
 async function buildCollageBlob(items) {
