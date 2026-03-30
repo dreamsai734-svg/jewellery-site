@@ -54,6 +54,7 @@
           </div>
           <div class="controls">
             <select id="filterType" onchange="render()"></select>
+            <select id="filterBrand" onchange="render()"></select>
             <select id="filterStatus" onchange="render()">
               <option value="">All Status</option>
               <option value="unmarked">Unmarked</option>
@@ -63,6 +64,7 @@
               <input id="hideMarked" type="checkbox" checked onchange="render()">
               Hide Marked
             </label>
+            <button class="btn btn-secondary" onclick="selectAllByBrand()">Select Whole Brand</button>
           </div>
         </div>
 
