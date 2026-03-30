@@ -17,16 +17,17 @@
   }
 
   function drawPageTexture(pdf, pageWidth, pageHeight) {
-    // Soft luxury gradient effect
-    pdf.setFillColor(245, 240, 235);
+    pdf.setFillColor(248, 243, 236);
     pdf.rect(0, 0, pageWidth, pageHeight, "F");
 
-    // subtle layered overlay
-    pdf.setFillColor(255, 255, 255);
-    pdf.setGState(new pdf.GState({ opacity: 0.4 }));
-    pdf.rect(0, 0, pageWidth, pageHeight / 2, "F");
+    pdf.setFillColor(242, 234, 224);
+    pdf.roundedRect(24, 24, pageWidth - 48, pageHeight - 48, 28, 28, "F");
 
-    pdf.setGState(new pdf.GState({ opacity: 1 }));
+    pdf.setDrawColor(230, 220, 209);
+    pdf.setLineWidth(0.4);
+    for (let y = 34; y < pageHeight - 30; y += 18) {
+      pdf.line(34, y, pageWidth - 34, y);
+    }
   }
 
   function drawGemMotif(pdf, x, y, size, fill, stroke) {
@@ -61,19 +62,16 @@
   }
 
   function drawHeader(pdf, pageWidth, margin, title, pageNumber, totalPages, sectionLabel) {
-    pdf.setFillColor(20, 20, 20);
-    pdf.rect(0, 0, pageWidth, 70, "F");
-
+    pdf.setFillColor(24, 32, 52);
+    pdf.roundedRect(margin, margin, pageWidth - margin * 2, 56, 16, 16, "F");
     pdf.setTextColor(255, 255, 255);
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(18);
-    pdf.text(title, 30, 40);
-
+    pdf.setFontSize(21);
+    pdf.text(title, margin + 18, margin + 24);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(10);
-    pdf.text(sectionLabel, 30, 58);
-
-    pdf.text(`Page ${pageNumber}/${totalPages}`, pageWidth - 40, 58, { align: "right" });
+    pdf.text(sectionLabel, margin + 18, margin + 41);
+    pdf.text(`Page ${pageNumber} of ${totalPages}`, pageWidth - margin - 74, margin + 41);
   }
 
   function drawFooter(pdf, pageWidth, pageHeight, margin) {
@@ -82,46 +80,60 @@
     pdf.setTextColor(96, 103, 116);
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(9);
+    pdf.text("Prepared for mobile viewing and WhatsApp sharing", margin, pageHeight - margin + 6);
   }
 
   async function drawCoverPage(pdf, pageWidth, pageHeight, margin, title, totalPages, firstBlob, itemCount) {
     drawPageTexture(pdf, pageWidth, pageHeight);
+    drawOrnaments(pdf, pageWidth, pageHeight);
 
-    // FULL IMAGE HERO BACKGROUND
-    const imageDataUrl = await blobToDataUrl(firstBlob);
-    pdf.addImage(imageDataUrl, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
-
-    // DARK OVERLAY (for text readability)
-    pdf.setFillColor(0, 0, 0);
-    pdf.setGState(new pdf.GState({ opacity: 0.45 }));
-    pdf.rect(0, 0, pageWidth, pageHeight, "F");
-    pdf.setGState(new pdf.GState({ opacity: 1 }));
-
-    // TITLE BLOCK
+    pdf.setFillColor(31, 36, 49);
+    pdf.roundedRect(margin, margin, pageWidth - margin * 2, 132, 22, 22, "F");
     pdf.setTextColor(255, 255, 255);
-    pdf.setFont("helvetica", "bold");
-
-    pdf.setFontSize(36);
-    pdf.text(title, 40, pageHeight / 2);
-
-    pdf.setFontSize(14);
     pdf.setFont("helvetica", "normal");
-    pdf.text("Luxury Jewellery Catalogue", 40, pageHeight / 2 + 30);
-
+    pdf.setFontSize(12);
+    pdf.text("Jewellery Catalogue", margin + 22, margin + 28);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(30);
+    pdf.text(title, margin + 22, margin + 64);
+    pdf.setFont("helvetica", "normal");
     pdf.setFontSize(11);
-    pdf.text(
-      `${itemCount} Designs  •  ${totalPages} Pages  •  ${formatDateLabel()}`,
-      40,
-      pageHeight / 2 + 55
-    );
+    pdf.text("Styled for client presentation, phone preview, and WhatsApp sharing.", margin + 22, margin + 88);
+    pdf.text(`Prepared on ${formatDateLabel()}  |  ${itemCount} items  |  ${totalPages} pages`, margin + 22, margin + 108);
 
-    // Bottom branding strip
+    const imageDataUrl = await blobToDataUrl(firstBlob);
+    const imageProps = pdf.getImageProperties(imageDataUrl);
+    const frameX = margin + 24;
+    const frameY = margin + 160;
+    const frameWidth = pageWidth - margin * 2 - 48;
+    const frameHeight = 360;
+
     pdf.setFillColor(255, 255, 255);
-    pdf.rect(0, pageHeight - 60, pageWidth, 60, "F");
+    pdf.setDrawColor(223, 212, 200);
+    pdf.roundedRect(frameX, frameY, frameWidth, frameHeight, 24, 24, "FD");
 
-    pdf.setTextColor(80, 80, 80);
+    const scale = Math.min((frameWidth - 26) / imageProps.width, (frameHeight - 26) / imageProps.height);
+    const renderWidth = imageProps.width * scale;
+    const renderHeight = imageProps.height * scale;
+    const imageX = frameX + (frameWidth - renderWidth) / 2;
+    const imageY = frameY + (frameHeight - renderHeight) / 2;
+    pdf.addImage(imageDataUrl, "PNG", imageX, imageY, renderWidth, renderHeight, undefined, "FAST");
+
+    pdf.setFillColor(255, 248, 241);
+    pdf.roundedRect(margin + 36, pageHeight - 122, pageWidth - margin * 2 - 72, 72, 18, 18, "F");
+    pdf.setTextColor(108, 59, 37);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(13);
+    pdf.text("Catalogue Notes", margin + 56, pageHeight - 92);
+    pdf.setFont("helvetica", "normal");
     pdf.setFontSize(10);
-    pdf.text("Crafted for premium client presentation", 40, pageHeight - 25);
+    pdf.setTextColor(96, 103, 116);
+    pdf.text(
+      "Use tray pages for product review and serial reference pages for fast code lookup.",
+      margin + 56,
+      pageHeight - 72,
+      { maxWidth: pageWidth - margin * 2 - 120 }
+    );
   }
 
   function drawVisualPageDetails(pdf, margin, pageWidth, frameY, frameHeight, index, totalVisualPages) {
@@ -247,14 +259,8 @@
     const serial = String((item && item["Serial No"]) || "");
     const brand = String((item && item["Brand Name"]) || "Collection");
 
-    /* subtle shadow */
-    pdf.setFillColor(0, 0, 0);
-    pdf.setGState(new pdf.GState({ opacity: 0.08 }));
-    pdf.rect(x + 3, y + 3, width, height, "F");
-    pdf.setGState(new pdf.GState({ opacity: 1 }));
-
-    pdf.setFillColor(255, 255, 255);
-    pdf.setDrawColor(210, 210, 210);
+    pdf.setFillColor(255, 252, 248);
+    pdf.setDrawColor(226, 211, 196);
     pdf.roundedRect(x, y, width, height, 12, 12, "FD");
 
     pdf.setFillColor(157, 92, 63);
@@ -292,12 +298,12 @@
     const pdf = new jsPdfApi({
       orientation: "portrait",
       unit: "pt",
-      format: [1080, 1920]
+      format: "a4"
     });
 
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
-    const margin = 0;
+    const margin = 26;
 
     const totalItems = items.length || pageBlobs.length * 6;
     const compactMode = totalItems > 300;
@@ -316,12 +322,6 @@
       /* fill entire page with 6-section grid image (no inset margin) */
       const imageDataUrl = await blobToDataUrl(pageBlobs[index]);
       pdf.addImage(imageDataUrl, "PNG", 0, 0, pageWidth, pageHeight, undefined, "FAST");
-
-      /* subtle overlay for richness */
-      pdf.setFillColor(0, 0, 0);
-      pdf.setGState(new pdf.GState({ opacity: 0.08 }));
-      pdf.rect(0, 0, pageWidth, pageHeight, "F");
-      pdf.setGState(new pdf.GState({ opacity: 1 }));
 
       /* small page-number badge bottom-right */
       const badgeLabel = `${index + 1} / ${pageBlobs.length}`;
