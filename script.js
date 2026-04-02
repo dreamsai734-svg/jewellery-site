@@ -6,8 +6,15 @@ let lastExportItems = [];
 let lastExportTitle = "Jewellery Catalogue";
 let lastPdfBlob = null;
 let lastPdfUrl = "";
+let gridCurrentPage = 1;
+let gridPageSize = 36;
+let selectedCurrentPage = 1;
+let selectedPageSize = 24;
+let lastSearchQuery = "";
+let lastSortBy = "";
+let controlsCollapsed = false;
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwRLdzOcbbOBxJ2T0U1tPIx8136KOJDse0WfxgZUcGi41GOGKZp5FnXRGk3LH6foP8/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxLAqqCCLaLS4bHiKAQXPjoTB08XpKAJDR08Ep9jh0WU2a1929K3Nn9jOIqUShwBWQ/exec";
 
 /* FETCH DATA */
 loadData();
@@ -48,6 +55,20 @@ function normalizeImageUrl(rawUrl) {
     // Drive may return temporary anti-abuse tokens that expire and cause 502.
     if (parsed.hostname.includes("drive.google.com")) {
       parsed.searchParams.delete("google_abuse");
+    }
+    // Trim leading/trailing spaces from each path segment (e.g. "Earrings " → "Earrings").
+    // Spreadsheet entries sometimes have trailing spaces in folder names which cause 404s.
+    if (parsed.hostname === "raw.githubusercontent.com") {
+      parsed.pathname = parsed.pathname
+        .split("/")
+        .map(seg => {
+          try {
+            return encodeURIComponent(decodeURIComponent(seg).trim());
+          } catch {
+            return seg;
+          }
+        })
+        .join("/");
     }
     return parsed.toString();
   } catch (err) {
@@ -117,36 +138,114 @@ function getPreviewFallbackImageUrl(item) {
   return candidates[1] || "";
 }
 
+function updateTabBadge() {
+  const badge = document.getElementById("browseTabBadge");
+  if (badge) {
+    if (selected.length > 0) {
+      badge.textContent = `${selected.length}`;
+    } else {
+      badge.textContent = "";
+    }
+  }
+}
+
+window.updateTabBadge = updateTabBadge;
+
 function switchTab(tabName) {
+  updateTabBadge();
   const browseTab = document.getElementById("browseTab");
+  const selectedTab = document.getElementById("selectedTab");
   const finalTrayTab = document.getElementById("finalTrayTab");
   const browseBtn = document.getElementById("tabBrowseBtn");
+  const selectedBtn = document.getElementById("tabSelectedBtn");
   const finalTrayBtn = document.getElementById("tabFinalTrayBtn");
 
   const isBrowse = tabName === "browse";
+  const isSelected = tabName === "selected";
   browseTab.classList.toggle("active", isBrowse);
-  finalTrayTab.classList.toggle("active", !isBrowse);
+  selectedTab.classList.toggle("active", isSelected);
+  finalTrayTab.classList.toggle("active", tabName === "finalTray");
   browseBtn.classList.toggle("active", isBrowse);
-  finalTrayBtn.classList.toggle("active", !isBrowse);
+  selectedBtn.classList.toggle("active", isSelected);
+  finalTrayBtn.classList.toggle("active", tabName === "finalTray");
 }
+
+function toggleControlsCollapse() {
+  const content = document.getElementById("controlsContent");
+  const btn = document.getElementById("collapseBtn");
+  
+  if (!content || !btn) {
+    return;
+  }
+  
+  controlsCollapsed = !controlsCollapsed;
+  content.classList.toggle("collapsed", controlsCollapsed);
+  btn.textContent = controlsCollapsed ? "+" : "−";
+  btn.title = controlsCollapsed ? "Expand controls" : "Collapse controls";
+}
+
+window.toggleControlsCollapse = toggleControlsCollapse;
 
 /* FILTER */
 function initFilter() {
-  let types = [...new Set(data.map(d => d["Type"]).filter(Boolean))];
+  const typeCounts = new Map();
+  data.forEach(item => {
+    const type = String(item["Type"] || "").trim();
+    if (!type) {
+      return;
+    }
+    typeCounts.set(type, (typeCounts.get(type) || 0) + 1);
+  });
+
+  let types = [...typeCounts.keys()];
   types.sort((a, b) => String(a).localeCompare(String(b)));
   let filter = document.getElementById("filterType");
   let brandFilter = document.getElementById("filterBrand");
 
   filter.innerHTML = '<option value="">All</option>' +
-    types.map(t => `<option value="${t}">${t}</option>`).join("");
+    types.map(t => `<option value="${t}">${t} (${typeCounts.get(t) || 0})</option>`).join("");
 
-  const brands = [...new Set(data.map(d => String(d["Brand Name"] || "").trim()).filter(Boolean))];
+  const brandCounts = new Map();
+  data.forEach(item => {
+    const brand = String(item["Brand Name"] || "").trim();
+    if (!brand) {
+      return;
+    }
+    brandCounts.set(brand, (brandCounts.get(brand) || 0) + 1);
+  });
+
+  const brands = [...brandCounts.keys()];
   brands.sort((a, b) => a.localeCompare(b));
 
   if (brandFilter) {
     brandFilter.innerHTML = '<option value="">All Brands</option>' +
-      brands.map(b => `<option value="${b}">${b}</option>`).join("");
+      brands.map(b => `<option value="${b}">${b} (${brandCounts.get(b) || 0})</option>`).join("");
   }
+
+  renderCountSummary(brandCounts, typeCounts);
+}
+
+function renderCountSummary(brandCounts, typeCounts) {
+  const summaryNode = document.getElementById("countSummary");
+  if (!summaryNode) {
+    return;
+  }
+
+  const topBrands = [...brandCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 10)
+    .map(([name, count]) => `${name}: ${count}`)
+    .join(" | ");
+
+  const allTypes = [...typeCounts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name, count]) => `${name}: ${count}`)
+    .join(" | ");
+
+  summaryNode.innerHTML = `
+    <p><strong>Brands:</strong> ${topBrands || "No brands found"}</p>
+    <p><strong>Types:</strong> ${allTypes || "No types found"}</p>
+  `;
 }
 
 function updateDashboardStats(visibleCount) {
@@ -168,6 +267,9 @@ function updateDashboardStats(visibleCount) {
 }
 
 function onFilterChanged() {
+  lastSearchQuery = document.getElementById("searchSerial") ? document.getElementById("searchSerial").value.trim().toUpperCase() : "";
+  lastSortBy = document.getElementById("sortBy") ? document.getElementById("sortBy").value : "";
+  gridCurrentPage = 1;
   render();
 }
 
@@ -175,10 +277,214 @@ window.onFilterChanged = onFilterChanged;
 
 /* RENDER GRID */
 function render() {
-  let filterType = document.getElementById("filterType").value;
-  let filterBrand = document.getElementById("filterBrand") ? document.getElementById("filterBrand").value : "";
-  let filterStatus = document.getElementById("filterStatus").value;
-  let hideMarked = document.getElementById("hideMarked").checked;
+  let filtered = getFilteredItems();
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / gridPageSize));
+  if (gridCurrentPage > pageCount) {
+    gridCurrentPage = pageCount;
+  }
+
+  const startIndex = (gridCurrentPage - 1) * gridPageSize;
+  const pageItems = filtered.slice(startIndex, startIndex + gridPageSize);
+  let html = "";
+
+  pageItems.forEach(item => {
+    const status = normalizeStatus(item["Status"]);
+    let isSelected = selected.includes(item["Serial No"]);
+    const imageUrl = getPreviewImageUrl(item);
+    const fallbackImageUrl = getPreviewFallbackImageUrl(item);
+    const onErrorAttr = fallbackImageUrl
+      ? `onerror=\"this.onerror=null;this.src='${fallbackImageUrl.replace(/'/g, "\\'")}';\"`
+      : "";
+
+    html += `
+      <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" onclick='toggle("${item["Serial No"]}")'>
+        <img src="${imageUrl}" ${onErrorAttr}>
+        <p>${item["Serial No"]}</p>
+        ${status === "marked" ? '<p class="marked-label">Marked</p>' : ''}
+      </div>
+    `;
+  });
+
+  document.getElementById("grid").innerHTML = html;
+  updateDashboardStats(filtered.length);
+  renderGridPager(filtered.length);
+  renderSelected();
+}
+
+function renderGridPager(totalItems) {
+  const pageInfo = document.getElementById("gridPageInfo");
+  const prevBtn = document.querySelector("#gridPager .pager-btn:first-child");
+  const nextBtn = document.querySelector("#gridPager .pager-btn:nth-child(3)");
+  const pageSizeNode = document.getElementById("pageSize");
+
+  if (pageSizeNode) {
+    pageSizeNode.value = String(gridPageSize);
+  }
+
+  const pageCount = Math.max(1, Math.ceil(totalItems / gridPageSize));
+  if (pageInfo) {
+    pageInfo.textContent = `Page ${gridCurrentPage} of ${pageCount}`;
+  }
+  if (prevBtn) {
+    prevBtn.disabled = gridCurrentPage <= 1;
+  }
+  if (nextBtn) {
+    nextBtn.disabled = gridCurrentPage >= pageCount;
+  }
+}
+
+/* TOGGLE */
+function toggle(id) {
+  const item = data.find(d => d["Serial No"] === id);
+  if (item && normalizeStatus(item["Status"]) === "marked") {
+    alert("This item is already marked and is not selectable.");
+    return;
+  }
+
+  if (selected.includes(id)) {
+    selected = selected.filter(x => x !== id);
+  } else {
+    selected.push(id);
+  }
+  updateTabBadge();
+  render();
+}
+
+/* SELECTION PREVIEW */
+function renderSelected() {
+  let area = document.getElementById("selectedArea");
+  const selectedItems = data.filter(d => selected.includes(d["Serial No"]));
+  const summary = document.getElementById("selectedSummary");
+
+  if (summary) {
+    summary.textContent = `${selectedItems.length} selected item${selectedItems.length === 1 ? "" : "s"}`;
+  }
+
+  const selectedPageCount = Math.max(1, Math.ceil(selectedItems.length / selectedPageSize));
+  if (selectedCurrentPage > selectedPageCount) {
+    selectedCurrentPage = selectedPageCount;
+  }
+
+  const selectedStart = (selectedCurrentPage - 1) * selectedPageSize;
+  const selectedPageItems = selectedItems.slice(selectedStart, selectedStart + selectedPageSize);
+
+  if (!selectedItems.length) {
+    area.innerHTML = '<div class="selection-empty">No items selected yet. Choose pieces from the catalogue to prepare a PDF.</div>';
+    renderSelectedPager(0);
+    return;
+  }
+
+  area.innerHTML = selectedPageItems
+    .map(item => {
+      const primaryUrl = getPreviewImageUrl(item);
+      const fallbackUrl = getPreviewFallbackImageUrl(item);
+      const onErrorAttr = fallbackUrl
+        ? `onerror=\"this.onerror=null;this.src='${fallbackUrl.replace(/'/g, "\\'")}';\"`
+        : "";
+
+      return `
+      <div class="selection-card">
+        <button class="remove-btn" onclick="removeFromSelected('${item["Serial No"].replace(/'/g, "\\'")}')" title="Remove from selection">✕</button>
+        <img src="${primaryUrl}" alt="${item["Serial No"]}" ${onErrorAttr}>
+        <p>${item["Serial No"]}</p>
+      </div>
+    `;
+    }).join("");
+
+  renderSelectedPager(selectedItems.length);
+}
+
+function renderSelectedPager(totalItems) {
+  const pageInfo = document.getElementById("selectedPageInfo");
+  const prevBtn = document.getElementById("selectedPrevBtn");
+  const nextBtn = document.getElementById("selectedNextBtn");
+  const pageSizeNode = document.getElementById("selectedPageSize");
+  const pageCount = Math.max(1, Math.ceil(totalItems / selectedPageSize));
+
+  if (pageSizeNode) {
+    pageSizeNode.value = String(selectedPageSize);
+  }
+
+  if (pageInfo) {
+    pageInfo.textContent = `Page ${selectedCurrentPage} of ${pageCount}`;
+  }
+
+  if (prevBtn) {
+    prevBtn.disabled = selectedCurrentPage <= 1;
+  }
+
+  if (nextBtn) {
+    nextBtn.disabled = selectedCurrentPage >= pageCount;
+  }
+}
+
+function goToPrevPage() {
+  if (gridCurrentPage <= 1) {
+    return;
+  }
+  gridCurrentPage -= 1;
+  render();
+}
+
+function goToNextPage() {
+  const totalItems = getFilteredItems().length;
+  const pageCount = Math.max(1, Math.ceil(totalItems / gridPageSize));
+  if (gridCurrentPage >= pageCount) {
+    return;
+  }
+  gridCurrentPage += 1;
+  render();
+}
+
+function changePageSize(value) {
+  const nextSize = Number(value);
+  if (!Number.isFinite(nextSize) || nextSize <= 0) {
+    return;
+  }
+  gridPageSize = nextSize;
+  gridCurrentPage = 1;
+  render();
+}
+
+function goToPrevSelectedPage() {
+  if (selectedCurrentPage <= 1) {
+    return;
+  }
+  selectedCurrentPage -= 1;
+  renderSelected();
+}
+
+function goToNextSelectedPage() {
+  const selectedItems = data.filter(d => selected.includes(d["Serial No"]));
+  const pageCount = Math.max(1, Math.ceil(selectedItems.length / selectedPageSize));
+  if (selectedCurrentPage >= pageCount) {
+    return;
+  }
+  selectedCurrentPage += 1;
+  renderSelected();
+}
+
+function changeSelectedPageSize(value) {
+  const nextSize = Number(value);
+  if (!Number.isFinite(nextSize) || nextSize <= 0) {
+    return;
+  }
+  selectedPageSize = nextSize;
+  selectedCurrentPage = 1;
+  renderSelected();
+}
+
+function getFilteredItems() {
+  const filterTypeNode = document.getElementById("filterType");
+  const filterBrandNode = document.getElementById("filterBrand");
+  const filterStatusNode = document.getElementById("filterStatus");
+  const hideMarkedNode = document.getElementById("hideMarked");
+
+  const filterType = filterTypeNode ? filterTypeNode.value : "";
+  const filterBrand = filterBrandNode ? filterBrandNode.value : "";
+  const filterStatus = filterStatusNode ? filterStatusNode.value : "";
+  const hideMarked = hideMarkedNode ? hideMarkedNode.checked : false;
 
   let filtered = data.filter(d => {
     const status = normalizeStatus(d["Status"]);
@@ -201,76 +507,30 @@ function render() {
       return false;
     }
 
+    if (lastSearchQuery && !String(d["Serial No"] || "").toUpperCase().includes(lastSearchQuery)) {
+      return false;
+    }
+
     return true;
   });
 
-  let html = "";
-
-  filtered.forEach(item => {
-    const status = normalizeStatus(item["Status"]);
-    let isSelected = selected.includes(item["Serial No"]);
-    const imageUrl = getPreviewImageUrl(item);
-    const fallbackImageUrl = getPreviewFallbackImageUrl(item);
-    const onErrorAttr = fallbackImageUrl
-      ? `onerror=\"this.onerror=null;this.src='${fallbackImageUrl.replace(/'/g, "\\'")}';\"`
-      : "";
-
-    html += `
-      <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" onclick='toggle("${item["Serial No"]}")'>
-        <img src="${imageUrl}" ${onErrorAttr}>
-        <p>${item["Serial No"]}</p>
-        ${status === "marked" ? '<p class="marked-label">Marked</p>' : ''}
-      </div>
-    `;
-  });
-
-  document.getElementById("grid").innerHTML = html;
-  updateDashboardStats(filtered.length);
-  renderSelected();
-}
-
-/* TOGGLE */
-function toggle(id) {
-  const item = data.find(d => d["Serial No"] === id);
-  if (item && normalizeStatus(item["Status"]) === "marked") {
-    alert("This item is already marked and is not selectable.");
-    return;
+  if (lastSortBy === "serial") {
+    filtered.sort((a, b) => String(a["Serial No"] || "").localeCompare(String(b["Serial No"] || "")));
+  } else if (lastSortBy === "brand") {
+    filtered.sort((a, b) => String(a["Brand Name"] || "").localeCompare(String(b["Brand Name"] || "")));
+  } else if (lastSortBy === "type") {
+    filtered.sort((a, b) => String(a["Type"] || "").localeCompare(String(b["Type"] || "")));
   }
 
-  if (selected.includes(id)) {
-    selected = selected.filter(x => x !== id);
-  } else {
-    selected.push(id);
-  }
-  render();
+  return filtered;
 }
 
-/* SELECTION PREVIEW */
-function renderSelected() {
-  let area = document.getElementById("selectedArea");
-  const selectedItems = data.filter(d => selected.includes(d["Serial No"]));
-
-  if (!selectedItems.length) {
-    area.innerHTML = '<div class="selection-empty">No items selected yet. Choose pieces from the catalogue to prepare a PDF.</div>';
-    return;
-  }
-
-  area.innerHTML = selectedItems
-    .map(item => {
-      const primaryUrl = getPreviewImageUrl(item);
-      const fallbackUrl = getPreviewFallbackImageUrl(item);
-      const onErrorAttr = fallbackUrl
-        ? `onerror=\"this.onerror=null;this.src='${fallbackUrl.replace(/'/g, "\\'")}';\"`
-        : "";
-
-      return `
-      <div class="selection-card">
-        <img src="${primaryUrl}" alt="${item["Serial No"]}" ${onErrorAttr}>
-        <p>${item["Serial No"]}</p>
-      </div>
-    `;
-    }).join("");
-}
+window.goToPrevPage = goToPrevPage;
+window.goToNextPage = goToNextPage;
+window.changePageSize = changePageSize;
+window.goToPrevSelectedPage = goToPrevSelectedPage;
+window.goToNextSelectedPage = goToNextSelectedPage;
+window.changeSelectedPageSize = changeSelectedPageSize;
 
 /* GENERATE SELECTION PDF */
 async function generateSelectionPdf() {
@@ -286,35 +546,31 @@ async function generateSelectionPdf() {
   showSpinner(true);
 
   try {
-    const selectedChunks = chunkArray(selected, 6);
-    console.log("Selected serials:", selectedChunks);
-    const generatedBlobs = [];
-    const exportItems = [];
+    const exportItems = data.filter(d => selected.includes(d["Serial No"]));
+    let generatedBlobs;
 
-    for (const chunkIds of selectedChunks) {
-      let collageBlob;
-      const selectedItems = data.filter(d => chunkIds.includes(d["Serial No"]));
-      exportItems.push(...selectedItems);
-
-      try {
-        collageBlob = await buildCollageBlobOnServer(chunkIds);
-        console.log()
-        console.log("Collage blob received from server for chunk:", chunkIds);
-        console.log("Collage blob ", collageBlob);
-      } catch (serverErr) {
-        console.warn("Server page render failed for chunk, using browser fallback", serverErr);
-        collageBlob = await buildCollageBlob(selectedItems);
-        console.log("Collage blob received from browser fallback for chunk:", selectedItems);
-        console.log("Collage blob size (bytes):", collageBlob);
+    try {
+      generatedBlobs = await buildAllCollagesOnServer(selected);
+    } catch (serverErr) {
+      console.warn("Server collage failed, using browser fallback", serverErr);
+      const chunks = chunkArray(selected, 6);
+      generatedBlobs = [];
+      for (const chunkIds of chunks) {
+        const items = data.filter(d => chunkIds.includes(d["Serial No"]));
+        let blob = await buildCollageBlob(items);
+        if (chunkIds.length < 6) {
+          blob = await trimOuterWhitespaceOnly(blob);
+        }
+        generatedBlobs.push(blob);
       }
-
-      collageBlob = await trimOuterWhitespaceOnly(collageBlob);
-      generatedBlobs.push(collageBlob);
     }
 
     if (generatedBlobs.length === 0) {
       throw new Error("Unable to prepare the PDF pages");
     }
+
+    // Collect items whose images could not be loaded (browser fallback only)
+    const allMissingImages = generatedBlobs.flatMap(b => b._missingItems || []);
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
@@ -324,8 +580,11 @@ async function generateSelectionPdf() {
 
     await rebuildPdfPreview();
 
-    if (collageBlobs.length > 1) {
-      alert(`${collageBlobs.length} PDF pages prepared. Preview updated.`);
+    const pageNote = collageBlobs.length > 1 ? `${collageBlobs.length} pages prepared. ` : "";
+    if (allMissingImages.length) {
+      alert(`${pageNote}PDF ready.\n\n⚠️ ${allMissingImages.length} item${allMissingImages.length === 1 ? "" : "s"} had no loadable image and show a placeholder:\n${allMissingImages.join(", ")}`);
+    } else if (collageBlobs.length > 1) {
+      alert(`${pageNote}Preview updated.`);
     }
 
   } catch (err) {
@@ -353,27 +612,16 @@ async function generateFinalTrayFromSerials() {
   setSerialFeedback("Preparing final tray PDF and updating marked status...", false);
 
   try {
-    const serialChunks = chunkArray(serials, 6);
-    const generatedBlobs = [];
-    const allMissing = new Set();
-    let updatedCount = 0;
     const exportItems = resolveItemsBySerials(serials);
+    const result = await buildAllAndMarkOnServer(serials);
 
-    for (const serialChunk of serialChunks) {
-      const result = await buildFinalTrayAndMarkOnServer(serialChunk);
-
-      if (!result.ok || !result.base64) {
-        throw new Error(result.error || "Unable to prepare the final tray PDF");
-      }
-
-      generatedBlobs.push(base64ToBlob(result.base64, result.mimeType || "image/png"));
-      updatedCount += Number(result.updatedCount || 0);
-      (result.missingSerials || []).forEach(s => allMissing.add(String(s)));
+    if (!result.ok || !Array.isArray(result.pages) || result.pages.length === 0) {
+      throw new Error(result.error || "Unable to prepare the final tray PDF");
     }
 
-    if (!generatedBlobs.length) {
-      throw new Error("Unable to prepare the final tray PDF");
-    }
+    const generatedBlobs = result.pages.map(p => base64ToBlob(p.base64, p.mimeType || "image/png"));
+    const updatedCount = Number(result.updatedCount || 0);
+    const missing = result.missingSerials || [];
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
@@ -382,17 +630,13 @@ async function generateFinalTrayFromSerials() {
     lastPdfBlob = null;
 
     await rebuildPdfPreview();
-
     await loadData();
 
-    const missing = [...allMissing];
     const missingText = missing.length ? ` Missing: ${missing.join(", ")}.` : "";
-    const pageText = collageBlobs.length > 1
-      ? ` ${collageBlobs.length} PDF pages prepared.`
-      : "";
+    const pageText = collageBlobs.length > 1 ? ` ${collageBlobs.length} PDF pages prepared.` : "";
 
     setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${pageText}`, false);
-    alert(`Final tray PDF prepared for all entered serials. ${updatedCount} items marked in Excel.${pageText}`);
+    alert(`Final tray PDF prepared. ${updatedCount} items marked in Excel.${pageText}`);
   } catch (err) {
     console.error(err);
     setSerialFeedback(err.message || "Failed to prepare the final tray PDF", true);
@@ -518,7 +762,48 @@ function selectAllByBrand() {
   }
 }
 
-window.selectAllByBrand = selectAllByBrand;
+function removeFromSelected(id) {
+  selected = selected.filter(x => x !== id);
+  updateTabBadge();
+  renderSelected();
+}
+
+function clearAllSelected() {
+  if (selected.length === 0) {
+    alert("No items selected.");
+    return;
+  }
+  if (confirm(`Clear all ${selected.length} selected items?`)) {
+    selected = [];
+    updateTabBadge();
+    renderSelected();
+  }
+}
+
+function removeMarkedFromSelected() {
+  const markedInSelection = selected.filter(id => {
+    const item = data.find(d => d["Serial No"] === id);
+    return item && normalizeStatus(item["Status"]) === "marked";
+  });
+
+  if (markedInSelection.length === 0) {
+    alert("No marked items in selection.");
+    return;
+  }
+
+  if (confirm(`Remove ${markedInSelection.length} marked item(s)?`)) {
+    selected = selected.filter(id => {
+      const item = data.find(d => d["Serial No"] === id);
+      return !(item && normalizeStatus(item["Status"]) === "marked");
+    });
+    updateTabBadge();
+    renderSelected();
+  }
+}
+
+window.removeFromSelected = removeFromSelected;
+window.clearAllSelected = clearAllSelected;
+window.removeMarkedFromSelected = removeMarkedFromSelected;
 
 function setSerialFeedback(message, isError) {
   const node = document.getElementById("serialFeedback");
@@ -701,11 +986,10 @@ function showSpinner(show) {
   document.getElementById("spinner").classList.toggle("hidden", !show);
 }
 
-async function buildCollageBlobOnServer(selectedIds) {
+async function buildAllCollagesOnServer(selectedIds) {
   const response = await fetch(API_URL, {
     method: "POST",
-    body: JSON.stringify({ action: "buildCollage", selected: selectedIds, columns: 2,
-  rows: 3 })
+    body: JSON.stringify({ action: "buildAllCollages", selected: selectedIds })
   });
 
   if (!response.ok) {
@@ -713,35 +997,35 @@ async function buildCollageBlobOnServer(selectedIds) {
   }
 
   const payload = await response.json();
-  console.log()
-  if (!payload.ok || !payload.base64) {
+  if (!payload.ok || !Array.isArray(payload.pages) || payload.pages.length === 0) {
     throw new Error(payload.error || "Invalid server collage response");
   }
 
-  if (payload.debug && payload.debug.insertedImages === 0) {
-    throw new Error("Server could not insert any images");
+  const blobs = [];
+  for (const page of payload.pages) {
+    if (!page.base64) continue;
+    if (page.debug && page.debug.insertedImages === 0) {
+      throw new Error("Server could not insert any images on a page");
+    }
+    const blob = base64ToBlob(page.base64, page.mimeType || "image/png");
+    const isBlank = await isMostlyWhiteBlob(blob);
+    if (isBlank) {
+      throw new Error("Server returned a blank/white collage page");
+    }
+    blobs.push(blob);
   }
 
-  if (payload.debug && payload.debug.exportedBytes && payload.debug.exportedBytes < 1500) {
-    throw new Error("Server returned suspiciously small collage image");
+  if (blobs.length === 0) {
+    throw new Error("Server returned no valid collage pages");
   }
 
-  const blob = base64ToBlob(payload.base64, payload.mimeType || "image/png");
-  const isBlank = await isMostlyWhiteBlob(blob);
-  if (isBlank) {
-    throw new Error("Server returned blank/white collage image");
-  }
-
-  return blob;
+  return blobs;
 }
 
-async function buildFinalTrayAndMarkOnServer(serials) {
+async function buildAllAndMarkOnServer(serials) {
   const response = await fetch(API_URL, {
     method: "POST",
-    body: JSON.stringify({
-      action: "buildAndMarkFinalTray",
-      serials: serials
-    })
+    body: JSON.stringify({ action: "buildAndMarkFinalTray", serials: serials })
   });
 
   if (!response.ok) {
@@ -820,16 +1104,19 @@ function loadImage(url) {
 
 async function loadImageWithFallback(item) {
   const urls = buildImageSourceCandidates(item, true);
+  const errors = [];
 
   for (const url of urls) {
     try {
       return await loadImage(url);
     } catch (err) {
-      console.warn("Image load failed, trying next source:", url, err);
+      errors.push(url);
     }
   }
 
-  throw new Error(`No CORS-safe image source for ${item["Serial No"]}. CollageURL is missing or invalid.`);
+  // Only log once per item after all sources are exhausted
+  console.warn(`[${item["Serial No"]}] All image sources failed (${errors.length} tried):`, errors);
+  throw new Error(`Image not found for ${item["Serial No"]}`);
 }
 
 function roundRect(ctx, x, y, w, h, r) {
@@ -870,12 +1157,13 @@ async function buildCollageBlob(items) {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
 
+  const missingInCollage = [];
   const images = await Promise.all(
     items.map(async item => {
       try {
         return { id: item["Serial No"], image: await loadImageWithFallback(item) };
       } catch (err) {
-        console.warn(err);
+        missingInCollage.push(item["Serial No"]);
         return { id: item["Serial No"], image: null };
       }
     })
@@ -949,6 +1237,7 @@ async function buildCollageBlob(items) {
         reject(new Error("Unable to build collage blob"));
         return;
       }
+      blob._missingItems = missingInCollage;
       resolve(blob);
     }, "image/png", 0.96);
   });
