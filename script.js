@@ -7,7 +7,7 @@ let lastExportTitle = "Jewellery Catalogue";
 let lastPdfBlob = null;
 let lastPdfUrl = "";
 
-const API_URL = "https://script.google.com/macros/s/AKfycbxR-98U3MLMyvwhaFBF8XavgLMo9L6tnhUkH55fo4JDvgnckxCYBl9s8xIBBfUUO_U/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwRLdzOcbbOBxJ2T0U1tPIx8136KOJDse0WfxgZUcGi41GOGKZp5FnXRGk3LH6foP8/exec";
 
 /* FETCH DATA */
 loadData();
@@ -35,6 +35,86 @@ function normalizeStatus(status) {
     return "marked";
   }
   return "unmarked";
+}
+
+function normalizeImageUrl(rawUrl) {
+  const input = String(rawUrl || "").trim();
+  if (!input) {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(input, window.location.href);
+    // Drive may return temporary anti-abuse tokens that expire and cause 502.
+    if (parsed.hostname.includes("drive.google.com")) {
+      parsed.searchParams.delete("google_abuse");
+    }
+    return parsed.toString();
+  } catch (err) {
+    return encodeURI(input);
+  }
+}
+
+function extractGoogleDriveId(url) {
+  try {
+    const parsed = new URL(url);
+    const idFromQuery = parsed.searchParams.get("id");
+    if (idFromQuery) {
+      return idFromQuery;
+    }
+
+    const match = parsed.pathname.match(/\/d\/([A-Za-z0-9_-]+)/);
+    return match ? match[1] : "";
+  } catch (err) {
+    return "";
+  }
+}
+
+function buildImageSourceCandidates(item, preferCollageFirst) {
+  const sources = preferCollageFirst
+    ? [item["CollageURL"], item["DisplayURL"]]
+    : [item["DisplayURL"], item["CollageURL"]];
+
+  const out = [];
+  const seen = new Set();
+
+  const add = (url) => {
+    const normalized = normalizeImageUrl(url);
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    out.push(normalized);
+  };
+
+  sources.forEach((rawUrl) => {
+    const normalized = normalizeImageUrl(rawUrl);
+    if (!normalized) {
+      return;
+    }
+
+    const driveId = extractGoogleDriveId(normalized);
+    if (driveId) {
+      // Prefer stable Drive variants before direct uc links.
+      add(`https://lh3.googleusercontent.com/d/${driveId}=w1600`);
+      add(`https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`);
+      add(`https://drive.google.com/uc?export=view&id=${driveId}`);
+    }
+
+    add(normalized);
+  });
+
+  return out;
+}
+
+function getPreviewImageUrl(item) {
+  const candidates = buildImageSourceCandidates(item, false);
+  return candidates[0] || "";
+}
+
+function getPreviewFallbackImageUrl(item) {
+  const candidates = buildImageSourceCandidates(item, false);
+  return candidates[1] || "";
 }
 
 function switchTab(tabName) {
@@ -87,6 +167,12 @@ function updateDashboardStats(visibleCount) {
   if (summaryNode) summaryNode.textContent = `${visibleCount} visible item${visibleCount === 1 ? "" : "s"}`;
 }
 
+function onFilterChanged() {
+  render();
+}
+
+window.onFilterChanged = onFilterChanged;
+
 /* RENDER GRID */
 function render() {
   let filterType = document.getElementById("filterType").value;
@@ -123,10 +209,15 @@ function render() {
   filtered.forEach(item => {
     const status = normalizeStatus(item["Status"]);
     let isSelected = selected.includes(item["Serial No"]);
+    const imageUrl = getPreviewImageUrl(item);
+    const fallbackImageUrl = getPreviewFallbackImageUrl(item);
+    const onErrorAttr = fallbackImageUrl
+      ? `onerror=\"this.onerror=null;this.src='${fallbackImageUrl.replace(/'/g, "\\'")}';\"`
+      : "";
 
     html += `
       <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" onclick='toggle("${item["Serial No"]}")'>
-        <img src="${item["DisplayURL"]}">
+        <img src="${imageUrl}" ${onErrorAttr}>
         <p>${item["Serial No"]}</p>
         ${status === "marked" ? '<p class="marked-label">Marked</p>' : ''}
       </div>
@@ -165,12 +256,20 @@ function renderSelected() {
   }
 
   area.innerHTML = selectedItems
-    .map(item => `
+    .map(item => {
+      const primaryUrl = getPreviewImageUrl(item);
+      const fallbackUrl = getPreviewFallbackImageUrl(item);
+      const onErrorAttr = fallbackUrl
+        ? `onerror=\"this.onerror=null;this.src='${fallbackUrl.replace(/'/g, "\\'")}';\"`
+        : "";
+
+      return `
       <div class="selection-card">
-        <img src="${item["DisplayURL"]}" alt="${item["Serial No"]}">
+        <img src="${primaryUrl}" alt="${item["Serial No"]}" ${onErrorAttr}>
         <p>${item["Serial No"]}</p>
       </div>
-    `).join("");
+    `;
+    }).join("");
 }
 
 /* GENERATE SELECTION PDF */
@@ -188,6 +287,7 @@ async function generateSelectionPdf() {
 
   try {
     const selectedChunks = chunkArray(selected, 6);
+    console.log("Selected serials:", selectedChunks);
     const generatedBlobs = [];
     const exportItems = [];
 
@@ -198,9 +298,14 @@ async function generateSelectionPdf() {
 
       try {
         collageBlob = await buildCollageBlobOnServer(chunkIds);
+        console.log()
+        console.log("Collage blob received from server for chunk:", chunkIds);
+        console.log("Collage blob ", collageBlob);
       } catch (serverErr) {
         console.warn("Server page render failed for chunk, using browser fallback", serverErr);
         collageBlob = await buildCollageBlob(selectedItems);
+        console.log("Collage blob received from browser fallback for chunk:", selectedItems);
+        console.log("Collage blob size (bytes):", collageBlob);
       }
 
       collageBlob = await trimOuterWhitespaceOnly(collageBlob);
@@ -599,15 +704,16 @@ function showSpinner(show) {
 async function buildCollageBlobOnServer(selectedIds) {
   const response = await fetch(API_URL, {
     method: "POST",
-    body: JSON.stringify({ action: "buildCollage", selected: selectedIds })
+    body: JSON.stringify({ action: "buildCollage", selected: selectedIds, columns: 2,
+  rows: 3 })
   });
-  console.log("ytial", response);
 
   if (!response.ok) {
     throw new Error(`Server returned ${response.status}`);
   }
 
   const payload = await response.json();
+  console.log()
   if (!payload.ok || !payload.base64) {
     throw new Error(payload.error || "Invalid server collage response");
   }
@@ -713,7 +819,7 @@ function loadImage(url) {
 }
 
 async function loadImageWithFallback(item) {
-  const urls = [item["CollageURL"]].filter(Boolean);
+  const urls = buildImageSourceCandidates(item, true);
 
   for (const url of urls) {
     try {
@@ -726,25 +832,38 @@ async function loadImageWithFallback(item) {
   throw new Error(`No CORS-safe image source for ${item["Serial No"]}. CollageURL is missing or invalid.`);
 }
 
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y,         x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h,     x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x,     y + h,     x, y + h - r);
+  ctx.lineTo(x,     y + r);
+  ctx.quadraticCurveTo(x,     y,         x + r, y);
+  ctx.closePath();
+}
+
 async function buildCollageBlob(items) {
-  /* A4 canvas divided into 6 equal sections: 3 rows × 2 columns.
-     Zero outer padding, zero gaps — every pixel of page space is used.
+  /* Canvas sized to match the PDF frame aspect ratio (≈ 0.9044).
+     2 columns × 3 rows, zero outer padding, zero gaps.
      Reading order: 1=top-left, 2=top-right, 3=mid-left, 4=mid-right,
                     5=bot-left,  6=bot-right */
-  const COLS = 2;
-  const ROWS = 3;
-  const W = 1240;
-  const H = 1754;
-  const LABEL_H = 36;          /* serial label strip at bottom of each cell */
-  const DIVIDER_COLOR = "#cccccc";
+  const COLS    = 2;
+  const ROWS    = 3;
+  const W       = 1240;
+  const H       = 1371;     /* 1240 / 0.9044 ≈ 1371 — matches PDF frame; 1371/3 = 457 px/row */
+  const LABEL_H = 36;       /* serial label strip at bottom of each cell */
+  const radius  = 10;
 
-  const cellW = W / COLS;       /* 620 px */
-  const cellH = H / ROWS;       /* ~584.67 px */
+  const cellW = W / COLS;        /* 620 px */
+  const cellH = H / ROWS;        /* 457 px — full cell (image + label) */
+  const imgH  = cellH - LABEL_H; /* 421 px — image-only area */
 
   const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  canvas.width = W;
+  canvas.width  = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
@@ -763,10 +882,10 @@ async function buildCollageBlob(items) {
   );
 
   for (let index = 0; index < 6; index++) {
-    const col = index % columns;
-    const row = Math.floor(index / columns);
-    const x = padding + col * (cellW + gap);
-    const y = padding + row * (cellH + labelHeight + gap);
+    const col   = index % COLS;
+    const row   = Math.floor(index / COLS);
+    const x     = col * cellW;   /* zero outer padding, zero gap */
+    const y     = row * cellH;   /* cellH already includes label — no double-count */
     const entry = images[index];
 
     /* — Image area — */
@@ -776,21 +895,19 @@ async function buildCollageBlob(items) {
     ctx.clip();
 
     if (entry && entry.image) {
-      const src = entry.image;
+      const src      = entry.image;
       const innerPad = 14;
-      const boxW = cellW - innerPad * 2;
-      const boxH = cellH - innerPad * 2;
-      const scale = Math.max(boxW / src.width, boxH / src.height);
-const dw = src.width * scale;
-const dh = src.height * scale;
-
-const dx = x + innerPad + (boxW - dw) / 2;
-const dy = y + innerPad + (boxH - dh) / 2;
-
-ctx.drawImage(src, dx, dy, dw, dh);
+      const boxW     = cellW - innerPad * 2;
+      const boxH     = imgH  - innerPad * 2;
+      const scale    = Math.max(boxW / src.width, boxH / src.height);
+      const dw       = src.width  * scale;
+      const dh       = src.height * scale;
+      const dx       = x + innerPad + (boxW - dw) / 2;
+      const dy       = y + innerPad + (boxH - dh) / 2;
+      ctx.drawImage(src, dx, dy, dw, dh);
     } else {
       ctx.fillStyle = "#f0ebe4";
-      ctx.fillRect(x, y, cellW, cellH);
+      ctx.fillRect(x, y, cellW, imgH);
       if (entry) {
         ctx.fillStyle = "#999999";
         ctx.font = "bold 18px Arial";
@@ -801,11 +918,12 @@ ctx.drawImage(src, dx, dy, dw, dh);
     }
     ctx.restore();
 
+    /* — Label strip — */
     ctx.save();
-    roundRect(ctx, x, y, cellW, cellH + labelHeight, radius);
+    roundRect(ctx, x, y, cellW, cellH, radius);
     ctx.clip();
     ctx.fillStyle = "#1f2431";
-    ctx.fillRect(x, y + cellH, cellW, labelHeight);
+    ctx.fillRect(x, y + imgH, cellW, LABEL_H);
     ctx.restore();
 
     if (entry) {
@@ -813,13 +931,14 @@ ctx.drawImage(src, dx, dy, dw, dh);
       ctx.font = "bold 22px 'Arial'";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + cellH + labelHeight / 2);
+      ctx.fillText(String(entry.id || ""), x + cellW / 2, y + imgH + LABEL_H / 2);
     }
 
+    /* — Cell border — */
     ctx.save();
     ctx.strokeStyle = "#d8c8b8";
     ctx.lineWidth = 1.5;
-    roundRect(ctx, x + 0.75, y + 0.75, cellW - 1.5, cellH + labelHeight - 1.5, radius);
+    roundRect(ctx, x + 0.75, y + 0.75, cellW - 1.5, cellH - 1.5, radius);
     ctx.stroke();
     ctx.restore();
   }
