@@ -39,23 +39,36 @@
     <section class="workspace-main">
       <div class="panel tabs-panel">
         <div class="tabs">
-          <button id="tabBrowseBtn" class="tab-btn active" onclick="switchTab('browse')">Browse Items</button>
+          <button id="tabBrowseBtn" class="tab-btn active" onclick="switchTab('browse')">Browse Items <span id="browseTabBadge" class="tab-badge"></span></button>
+          <button id="tabSelectedBtn" class="tab-btn" onclick="switchTab('selected')">Selected Items</button>
           <button id="tabFinalTrayBtn" class="tab-btn" onclick="switchTab('finalTray')">Final Tray by Serial</button>
         </div>
       </div>
 
       <section id="browseTab" class="tab-section active">
         <div class="panel controls-panel">
-          <div class="panel-heading compact">
+          <div class="panel-heading compact controls-heading" style="cursor: pointer;" onclick="toggleControlsCollapse()">
             <div>
               <p class="eyebrow small">Catalogue Controls</p>
               <h3>Filter and select items</h3>
             </div>
-            <p id="gridSummary" class="panel-meta">0 visible items</p>
+            <div class="heading-actions">
+              <p id="gridSummary" class="panel-meta">0 visible items</p>
+              <button id="collapseBtn" class="collapse-btn" title="Collapse controls">−</button>
+            </div>
           </div>
-          <div class="controls">
+          <div id="controlsContent" class="controls-content">
+            <div id="countSummary" class="count-summary"></div>
+            <div class="controls">
+            <input id="searchSerial" type="text" placeholder="Search by serial..." onkeyup="onFilterChanged()" class="search-input">
             <select id="filterType" onchange="onFilterChanged()"></select>
             <select id="filterBrand" onchange="onFilterChanged()"></select>
+            <select id="sortBy" onchange="onFilterChanged()">
+              <option value="">Sort by</option>
+              <option value="serial">Serial No.</option>
+              <option value="brand">Brand</option>
+              <option value="type">Type</option>
+            </select>
             <select id="filterStatus" onchange="onFilterChanged()">
               <option value="">All Status</option>
               <option value="unmarked">Unmarked</option>
@@ -67,17 +80,7 @@
             </label>
             <button class="btn btn-secondary" onclick="selectAllByBrand()">Select Whole Brand</button>
           </div>
-        </div>
-
-        <div class="panel selection-panel">
-          <div class="panel-heading compact">
-            <div>
-              <p class="eyebrow small">Selection</p>
-              <h3>Items queued for PDF</h3>
-            </div>
-            <p class="panel-meta">Tap cards below to add or remove pieces</p>
           </div>
-          <div id="selectedArea" class="selection-grid"></div>
         </div>
 
         <div class="panel grid-panel">
@@ -89,6 +92,36 @@
             <select id="pageSize" onchange="changePageSize(this.value)">
               <option value="24">24 / page</option>
               <option value="36" selected>36 / page</option>
+              <option value="48">48 / page</option>
+              <option value="72">72 / page</option>
+            </select>
+          </div>
+        </div>
+
+      </section>
+
+      <section id="selectedTab" class="tab-section">
+        <div class="panel selection-panel">
+          <div class="panel-heading compact">
+            <div>
+              <p class="eyebrow small">Selection</p>
+              <h3>Items queued for PDF</h3>
+            </div>
+            <p id="selectedSummary" class="panel-meta">0 selected items</p>
+          </div>
+          <div class="bulk-toolbar">
+            <button class="btn btn-secondary btn-sm" onclick="clearAllSelected()">Clear All</button>
+            <button class="btn btn-secondary btn-sm" onclick="removeMarkedFromSelected()">Remove Marked</button>
+          </div>
+
+          <div id="selectedArea" class="selection-grid"></div>
+          <div class="grid-pager" id="selectedPager">
+            <button id="selectedPrevBtn" class="btn btn-secondary pager-btn" onclick="goToPrevSelectedPage()">Previous</button>
+            <p id="selectedPageInfo" class="panel-meta">Page 1 of 1</p>
+            <button id="selectedNextBtn" class="btn btn-secondary pager-btn" onclick="goToNextSelectedPage()">Next</button>
+            <select id="selectedPageSize" onchange="changeSelectedPageSize(this.value)">
+              <option value="24" selected>24 / page</option>
+              <option value="36">36 / page</option>
               <option value="48">48 / page</option>
               <option value="72">72 / page</option>
             </select>
