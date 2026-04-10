@@ -4,6 +4,7 @@ let lastBlob = null;
 let collageBlobs = [];
 let lastExportItems = [];
 let lastExportTitle = "Jewellery Catalogue";
+let lastExportKind = "none";
 let lastPdfBlob = null;
 let lastPdfUrl = "";
 let gridCurrentPage = 1;
@@ -14,7 +15,17 @@ let lastSearchQuery = "";
 let lastSortBy = "";
 let controlsCollapsed = false;
 
-const API_URL = "https://script.google.com/macros/s/AKfycby40mx0lw5Tszle5G6PAXkRRBxjVCGMt5d1ePJRll3zNOXnL6P_INCSfOcArklZs94/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxfZqqBkEon7RsOIofd8zYXs2YJQXRpy-qAy7M6FlKv5mR0MVvE10Yh1HCQW7RIUFg/exec";
+const APP_BUILD_TAG = "script-20260410-guard-logs-1";
+
+function traceFinalTray(step, details) {
+  const stamp = new Date().toISOString();
+  if (details === undefined) {
+    console.log(`[FinalTray ${stamp}] ${step}`);
+    return;
+  }
+  console.log(`[FinalTray ${stamp}] ${step}`, details);
+}
 
 /* FETCH DATA */
 loadData();
@@ -576,6 +587,7 @@ async function generateSelectionPdf() {
     lastBlob = collageBlobs[0];
     lastExportItems = exportItems;
     lastExportTitle = "Client Catalogue";
+    lastExportKind = "selection";
     lastPdfBlob = null;
 
     await rebuildPdfPreview();
@@ -612,8 +624,29 @@ async function generateFinalTrayFromSerials() {
   setSerialFeedback("Preparing final tray PDF and updating marked status...", false);
 
   try {
+    const requestId = `ft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    traceFinalTray("generate:start", {
+      requestId,
+      build: APP_BUILD_TAG,
+      serialCount: serials.length,
+      serialPreview: serials.slice(0, 8)
+    });
+
     const exportItems = resolveItemsBySerials(serials);
+    traceFinalTray("generate:resolvedItems", {
+      requestId,
+      resolvedCount: exportItems.length
+    });
+
     const result = await buildAllAndMarkOnServer(serials);
+    traceFinalTray("generate:serverResult", {
+      requestId,
+      ok: !!result?.ok,
+      pages: Array.isArray(result?.pages) ? result.pages.length : 0,
+      updatedCount: Number(result?.updatedCount || 0),
+      missingCount: Array.isArray(result?.missingSerials) ? result.missingSerials.length : 0,
+      error: result?.error || ""
+    });
 
     if (!result.ok || !Array.isArray(result.pages) || result.pages.length === 0) {
       throw new Error(result.error || "Unable to prepare the final tray PDF");
@@ -627,6 +660,7 @@ async function generateFinalTrayFromSerials() {
     lastBlob = collageBlobs[0];
     lastExportItems = exportItems;
     lastExportTitle = "Final Tray Catalogue";
+    lastExportKind = "final-tray";
     lastPdfBlob = null;
 
     await rebuildPdfPreview();
@@ -636,9 +670,19 @@ async function generateFinalTrayFromSerials() {
     const pageText = collageBlobs.length > 1 ? ` ${collageBlobs.length} PDF pages prepared.` : "";
 
     setSerialFeedback(`Done. Marked ${updatedCount} items in Excel.${missingText}${pageText}`, false);
+    traceFinalTray("generate:done", {
+      requestId,
+      pages: collageBlobs.length,
+      marked: updatedCount,
+      missing
+    });
     alert(`Final tray PDF prepared. ${updatedCount} items marked in Excel.${pageText}`);
   } catch (err) {
     console.error(err);
+    traceFinalTray("generate:error", {
+      message: err?.message || String(err),
+      stack: err?.stack || ""
+    });
     setSerialFeedback(err.message || "Failed to prepare the final tray PDF", true);
     alert("Error preparing the final tray PDF. Please check serial codes and try again.");
   } finally {
@@ -967,6 +1011,26 @@ async function shareCurrentPdf() {
   }
 }
 
+async function shareFinalTrayPdf() {
+  if (lastExportKind !== "final-tray") {
+    const hint = lastExportTitle ? ` Current PDF: ${lastExportTitle}.` : "";
+    alert(`Generate Final Tray PDF first, then share from this button.${hint}`);
+    traceFinalTray("share:block-non-final", {
+      lastExportKind,
+      lastExportTitle,
+      hasPages: collageBlobs.length > 0
+    });
+    return;
+  }
+
+  traceFinalTray("share:allowed", {
+    lastExportKind,
+    lastExportTitle,
+    pages: collageBlobs.length
+  });
+  return shareCurrentPdf();
+}
+
 function triggerBlobDownload(blob, fileName) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1023,16 +1087,58 @@ async function buildAllCollagesOnServer(selectedIds) {
 }
 
 async function buildAllAndMarkOnServer(serials) {
+  const requestId = `srv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  traceFinalTray("server:request", {
+    requestId,
+    action: "buildAndMarkFinalTray",
+    serialCount: serials.length,
+    serialPreview: serials.slice(0, 8)
+  });
+
   const response = await fetch(API_URL, {
     method: "POST",
     body: JSON.stringify({ action: "buildAndMarkFinalTray", serials: serials })
+  });
+
+  traceFinalTray("server:http", {
+    requestId,
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText
   });
 
   if (!response.ok) {
     throw new Error(`Server returned ${response.status}`);
   }
 
-  return response.json();
+  const rawText = await response.text();
+  traceFinalTray("server:raw", {
+    requestId,
+    length: rawText.length,
+    preview: rawText.slice(0, 260)
+  });
+
+  let payload;
+  try {
+    payload = JSON.parse(rawText);
+  } catch (err) {
+    traceFinalTray("server:parse-error", {
+      requestId,
+      message: err && err.message ? err.message : String(err)
+    });
+    throw new Error("Server returned invalid JSON");
+  }
+
+  traceFinalTray("server:payload", {
+    requestId,
+    ok: !!payload.ok,
+    pageCount: Array.isArray(payload.pages) ? payload.pages.length : 0,
+    updatedCount: Number(payload.updatedCount || 0),
+    missingCount: Array.isArray(payload.missingSerials) ? payload.missingSerials.length : 0,
+    error: payload.error || ""
+  });
+
+  return payload;
 }
 
 async function isMostlyWhiteBlob(blob) {
