@@ -17,7 +17,7 @@ let controlsCollapsed = false;
 let finalTraySerials = [];
 let finalTraySuggestionIndex = -1;
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwYCE9aKudTo6qEgdPM4htgm9jl2ucu1MlxrxT-XcvFTDWISUXjLE22LJqzqtqD-qk/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbwDbwwABnXLr2afUr3UR5aMasLozNOizGNguabDlZ_LhngrNNSqVpt4T_tZNxO8KQ/exec";
 const APP_BUILD_TAG = "script-20260410-guard-logs-1";
 
 function traceFinalTray(step, details) {
@@ -650,23 +650,52 @@ async function generateFinalTrayFromSerials() {
       resolvedCount: exportItems.length
     });
 
-    const result = await buildAllAndMarkOnServer(serials);
-    traceFinalTray("generate:serverResult", {
-      requestId,
-      ok: !!result?.ok,
-      pages: Array.isArray(result?.pages) ? result.pages.length : 0,
-      updatedCount: Number(result?.updatedCount || 0),
-      missingCount: Array.isArray(result?.missingSerials) ? result.missingSerials.length : 0,
-      error: result?.error || ""
-    });
+    const exportIds = exportItems
+      .map(item => String(item["Serial No"] || "").trim())
+      .filter(Boolean);
 
-    if (!result.ok || !Array.isArray(result.pages) || result.pages.length === 0) {
-      throw new Error(result.error || "Unable to prepare the final tray PDF");
+    if (!exportIds.length) {
+      throw new Error("No matching serials found in current data");
     }
 
-    const generatedBlobs = result.pages.map(p => base64ToBlob(p.base64, p.mimeType || "image/png"));
-    const updatedCount = Number(result.updatedCount || 0);
-    const missing = result.missingSerials || [];
+    let generatedBlobs;
+    try {
+      // Keep Final Tray visual output identical to Selection pipeline.
+      generatedBlobs = await buildAllCollagesOnServer(exportIds);
+    } catch (serverErr) {
+      console.warn("Final tray server collage failed, using browser fallback", serverErr);
+      const chunks = chunkArray(exportIds, 6);
+      generatedBlobs = [];
+      for (const chunkIds of chunks) {
+        const items = data.filter(d => chunkIds.includes(String(d["Serial No"] || "").trim()));
+        let blob = await buildCollageBlob(items);
+        if (chunkIds.length < 6) {
+          blob = await trimOuterWhitespaceOnly(blob);
+        }
+        generatedBlobs.push(blob);
+      }
+    }
+
+    if (!generatedBlobs || generatedBlobs.length === 0) {
+      throw new Error("Unable to prepare the final tray PDF pages");
+    }
+
+    const markResult = await markFinalTrayOnlyOnServer(serials);
+    traceFinalTray("generate:serverResult", {
+      requestId,
+      ok: !!markResult?.ok,
+      pages: generatedBlobs.length,
+      updatedCount: Number(markResult?.updatedCount || 0),
+      missingCount: Array.isArray(markResult?.missingSerials) ? markResult.missingSerials.length : 0,
+      error: markResult?.error || ""
+    });
+
+    if (!markResult.ok) {
+      throw new Error(markResult.error || "Unable to update marked status");
+    }
+
+    const updatedCount = Number(markResult.updatedCount || 0);
+    const missing = markResult.missingSerials || [];
 
     collageBlobs = generatedBlobs;
     lastBlob = collageBlobs[0];
@@ -695,7 +724,13 @@ async function generateFinalTrayFromSerials() {
       message: err?.message || String(err),
       stack: err?.stack || ""
     });
-    setSerialFeedback(err.message || "Failed to prepare the final tray PDF", true);
+    const rawMessage = err && err.message ? String(err.message) : "Failed to prepare the final tray PDF";
+    const isSlidesRuntimeMismatch = /setPageWidth|setPageHeight/i.test(rawMessage);
+    const uiMessage = isSlidesRuntimeMismatch
+      ? "Final Tray failed on server: outdated Apps Script deployment. Redeploy Web App with New Version, then retry."
+      : rawMessage;
+
+    setSerialFeedback(uiMessage, true);
     alert("Error preparing the final tray PDF. Please check serial codes and try again.");
   } finally {
     showSpinner(false);
@@ -1369,6 +1404,78 @@ async function buildAllAndMarkOnServer(serials) {
     missingCount: Array.isArray(payload.missingSerials) ? payload.missingSerials.length : 0,
     error: payload.error || ""
   });
+
+  return payload;
+}
+
+async function markFinalTrayOnlyOnServer(serials) {
+  const requestId = `mark-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  traceFinalTray("server:mark-only:request", {
+    requestId,
+    action: "markFinalTrayOnly",
+    serialCount: serials.length,
+    serialPreview: serials.slice(0, 8)
+  });
+
+  const response = await fetch(API_URL, {
+    method: "POST",
+    body: JSON.stringify({ action: "markFinalTrayOnly", serials: serials })
+  });
+
+  traceFinalTray("server:mark-only:http", {
+    requestId,
+    ok: response.ok,
+    status: response.status,
+    statusText: response.statusText
+  });
+
+  if (!response.ok) {
+    throw new Error(`Server returned ${response.status}`);
+  }
+
+  const rawText = await response.text();
+  traceFinalTray("server:mark-only:raw", {
+    requestId,
+    length: rawText.length,
+    preview: rawText.slice(0, 260)
+  });
+
+  let payload;
+  try {
+    payload = JSON.parse(rawText);
+  } catch (err) {
+    traceFinalTray("server:mark-only:parse-error", {
+      requestId,
+      message: err && err.message ? err.message : String(err)
+    });
+    throw new Error("Server returned invalid JSON");
+  }
+
+  traceFinalTray("server:mark-only:payload", {
+    requestId,
+    ok: !!payload.ok,
+    updatedCount: Number(payload.updatedCount || 0),
+    missingCount: Array.isArray(payload.missingSerials) ? payload.missingSerials.length : 0,
+    error: payload.error || ""
+  });
+
+  const rawError = String(payload && payload.error ? payload.error : "");
+  const unsupportedMarkAction = !payload.ok && /(unsupported|unknown|invalid|action)/i.test(rawError);
+
+  if (unsupportedMarkAction) {
+    traceFinalTray("server:mark-only:fallback-legacy", {
+      requestId,
+      error: rawError
+    });
+
+    const legacy = await buildAllAndMarkOnServer(serials);
+    return {
+      ok: !!legacy.ok,
+      updatedCount: Number(legacy.updatedCount || 0),
+      missingSerials: Array.isArray(legacy.missingSerials) ? legacy.missingSerials : [],
+      error: legacy.error || ""
+    };
+  }
 
   return payload;
 }
