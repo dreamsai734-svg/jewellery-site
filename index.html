@@ -146,10 +146,22 @@
             <p class="panel-meta">Paste serial numbers separated by comma, semicolon, or a new line.</p>
           </div>
 
-          <textarea id="serialInput" rows="6" placeholder="Example:
+          <div class="final-tray-entry">
+            <textarea id="serialBulkInput" rows="5" placeholder="Paste serial codes separated by comma, semicolon, or new line.
+Example:
 RING-AB1234
-NECK-XY9876
-BRACELET-1JGZVO"></textarea>
+NECK-XY9876"></textarea>
+            <button class="btn btn-secondary" type="button" onclick="addBulkSerialsToFinalTray()">Add Codes to Final List</button>
+          </div>
+
+          <div class="final-tray-search-shell">
+            <label for="finalTraySearchInput">Search/Add Serial Code</label>
+            <input id="finalTraySearchInput" type="text" autocomplete="off" placeholder="Type code to search suggestions, then press Enter to add">
+            <div id="finalTraySuggestions" class="final-tray-suggestions hidden"></div>
+          </div>
+
+          <div id="finalTrayListMeta" class="panel-meta">0 codes in final tray list</div>
+          <div id="finalTrayList" class="final-tray-list"></div>
 
           <div class="actions primary-actions">
             <button class="btn btn-primary" onclick="generateFinalTrayFromSerials()">Generate Final Tray PDF + Mark in Excel</button>
