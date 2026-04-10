@@ -14,7 +14,7 @@ let lastSearchQuery = "";
 let lastSortBy = "";
 let controlsCollapsed = false;
 
-const API_URL = "https://script.google.com/macros/s/AKfycbxGE3ywas9-wcc_cpM1J5qbhhxN7On71Ad10xajAJ8ZWu8Nu1RVNgVZEl_QlIxzjsE/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbz2TqkNELFuxtwXK4P_1MEdEWiVfpAv6TfCBbBuMETj_OVNOLrp6RMXLb1RyZEdelU/exec";
 
 /* FETCH DATA */
 loadData();
