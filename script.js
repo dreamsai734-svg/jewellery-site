@@ -17,7 +17,7 @@ let controlsCollapsed = false;
 let finalTraySerials = [];
 let finalTraySuggestionIndex = -1;
 
-const API_URL = "https://script.google.com/macros/s/AKfycbwDbwwABnXLr2afUr3UR5aMasLozNOizGNguabDlZ_LhngrNNSqVpt4T_tZNxO8KQ/exec";
+const API_URL = "https://script.google.com/macros/s/AKfycbxutbC0sr5SrbagkOzjHtxKtIWB88qHj37tMmenbPTRgn3KX_gsWq2_nWaKqhtp6J4/exec";
 const APP_BUILD_TAG = "script-20260410-guard-logs-1";
 
 function traceFinalTray(step, details) {
