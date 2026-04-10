@@ -14,6 +14,8 @@ let selectedPageSize = 24;
 let lastSearchQuery = "";
 let lastSortBy = "";
 let controlsCollapsed = false;
+let finalTraySerials = [];
+let finalTraySuggestionIndex = -1;
 
 const API_URL = "https://script.google.com/macros/s/AKfycbxfZqqBkEon7RsOIofd8zYXs2YJQXRpy-qAy7M6FlKv5mR0MVvE10Yh1HCQW7RIUFg/exec";
 const APP_BUILD_TAG = "script-20260410-guard-logs-1";
@@ -28,6 +30,7 @@ function traceFinalTray(step, details) {
 }
 
 /* FETCH DATA */
+initFinalTrayUi();
 loadData();
 
 async function loadData() {
@@ -45,6 +48,7 @@ async function loadData() {
   });
   initFilter();
   render();
+  renderFinalTraySerialManager();
 }
 
 function normalizeStatus(status) {
@@ -608,8 +612,16 @@ async function generateSelectionPdf() {
 }
 
 async function generateFinalTrayFromSerials() {
-  const serialInput = document.getElementById("serialInput").value || "";
-  const serials = parseSerialInput(serialInput);
+  let serials = [...finalTraySerials];
+
+  if (!serials.length) {
+    const serialInput = document.getElementById("serialBulkInput");
+    const parsed = parseSerialInput(serialInput ? serialInput.value : "");
+    if (parsed.length) {
+      addSerialsToFinalTray(parsed);
+      serials = [...finalTraySerials];
+    }
+  }
 
   if (!serials.length) {
     setSerialFeedback("Please enter at least one serial code.", true);
@@ -719,6 +731,225 @@ function parseSerialInput(rawText) {
   });
 
   return [...new Set(tokens)];
+}
+
+function initFinalTrayUi() {
+  const searchInput = document.getElementById("finalTraySearchInput");
+  const bulkInput = document.getElementById("serialBulkInput");
+
+  if (!searchInput) {
+    return;
+  }
+
+  searchInput.addEventListener("input", () => {
+    finalTraySuggestionIndex = -1;
+    renderFinalTraySerialManager();
+  });
+
+  searchInput.addEventListener("keydown", (event) => {
+    const suggestions = getFinalTraySuggestions(searchInput.value || "");
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!suggestions.length) {
+        return;
+      }
+      finalTraySuggestionIndex = Math.min(finalTraySuggestionIndex + 1, suggestions.length - 1);
+      renderFinalTraySerialManager();
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!suggestions.length) {
+        return;
+      }
+      finalTraySuggestionIndex = Math.max(finalTraySuggestionIndex - 1, 0);
+      renderFinalTraySerialManager();
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === "," || event.key === ";") {
+      event.preventDefault();
+      const picked = finalTraySuggestionIndex >= 0 && suggestions[finalTraySuggestionIndex]
+        ? suggestions[finalTraySuggestionIndex]
+        : searchInput.value;
+
+      const added = addSerialsToFinalTray([picked]);
+      if (added > 0) {
+        searchInput.value = "";
+      }
+      finalTraySuggestionIndex = -1;
+      renderFinalTraySerialManager();
+    }
+
+    if (event.key === "Backspace" && !searchInput.value && finalTraySerials.length) {
+      finalTraySerials = finalTraySerials.slice(0, -1);
+      renderFinalTraySerialManager();
+    }
+  });
+
+  searchInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      finalTraySuggestionIndex = -1;
+      renderFinalTraySerialManager();
+    }, 120);
+  });
+
+  searchInput.addEventListener("focus", () => {
+    renderFinalTraySerialManager();
+  });
+
+  if (bulkInput) {
+    bulkInput.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        event.preventDefault();
+        addBulkSerialsToFinalTray();
+      }
+    });
+  }
+}
+
+function buildKnownSerialDictionary() {
+  const out = [];
+  const seen = new Set();
+
+  data.forEach((item) => {
+    const normalized = sanitizeSerialToken(item["Serial No"] || "");
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    out.push(normalized);
+  });
+
+  return out;
+}
+
+function addSerialsToFinalTray(values) {
+  const incoming = Array.isArray(values) ? values : [];
+  const existing = new Set(finalTraySerials);
+  let addedCount = 0;
+
+  incoming.forEach((value) => {
+    const normalized = sanitizeSerialToken(value);
+    if (!normalized || existing.has(normalized)) {
+      return;
+    }
+    existing.add(normalized);
+    finalTraySerials.push(normalized);
+    addedCount += 1;
+  });
+
+  return addedCount;
+}
+
+function removeSerialFromFinalTray(serial) {
+  const normalized = sanitizeSerialToken(serial);
+  if (!normalized) {
+    return;
+  }
+  finalTraySerials = finalTraySerials.filter((s) => s !== normalized);
+  renderFinalTraySerialManager();
+}
+
+function addBulkSerialsToFinalTray() {
+  const bulkInput = document.getElementById("serialBulkInput");
+  const parsed = parseSerialInput(bulkInput ? bulkInput.value : "");
+  const added = addSerialsToFinalTray(parsed);
+
+  if (bulkInput && added > 0) {
+    bulkInput.value = "";
+  }
+
+  if (added === 0 && parsed.length > 0) {
+    setSerialFeedback("All parsed serials are already in the final list.", false);
+  } else if (added > 0) {
+    setSerialFeedback(`Added ${added} code${added === 1 ? "" : "s"} to final tray list.`, false);
+  }
+
+  finalTraySuggestionIndex = -1;
+  renderFinalTraySerialManager();
+}
+
+function getFinalTraySuggestions(rawQuery) {
+  const query = sanitizeSerialToken(rawQuery || "");
+  if (!query) {
+    return [];
+  }
+
+  const fromCurrentList = finalTraySerials.filter((serial) => serial.includes(query));
+  const currentSet = new Set(fromCurrentList);
+  const known = buildKnownSerialDictionary();
+  const fromKnown = known
+    .filter((serial) => serial.includes(query) && !currentSet.has(serial) && finalTraySerials.indexOf(serial) === -1)
+    .slice(0, 10);
+
+  return [...fromCurrentList, ...fromKnown].slice(0, 12);
+}
+
+function renderFinalTraySerialManager() {
+  const listNode = document.getElementById("finalTrayList");
+  const metaNode = document.getElementById("finalTrayListMeta");
+  const inputNode = document.getElementById("finalTraySearchInput");
+  const suggestionsNode = document.getElementById("finalTraySuggestions");
+
+  if (!listNode || !metaNode || !suggestionsNode || !inputNode) {
+    return;
+  }
+
+  metaNode.textContent = `${finalTraySerials.length} code${finalTraySerials.length === 1 ? "" : "s"} in final tray list`;
+
+  if (!finalTraySerials.length) {
+    listNode.innerHTML = '<span class="panel-meta">No serials added yet.</span>';
+  } else {
+    listNode.innerHTML = finalTraySerials.map((serial) => `
+      <span class="final-tray-chip" title="${serial}">
+        ${serial}
+        <button type="button" class="final-tray-chip-remove" data-serial="${serial}" aria-label="Remove ${serial}">✕</button>
+      </span>
+    `).join("");
+
+    listNode.querySelectorAll(".final-tray-chip-remove").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        removeSerialFromFinalTray(btn.getAttribute("data-serial") || "");
+      });
+    });
+  }
+
+  const suggestions = getFinalTraySuggestions(inputNode.value || "");
+  if (!suggestions.length || document.activeElement !== inputNode) {
+    suggestionsNode.classList.add("hidden");
+    suggestionsNode.innerHTML = "";
+    return;
+  }
+
+  if (finalTraySuggestionIndex >= suggestions.length) {
+    finalTraySuggestionIndex = suggestions.length - 1;
+  }
+
+  suggestionsNode.innerHTML = suggestions.map((serial, idx) => `
+    <button type="button" class="final-tray-suggestion ${idx === finalTraySuggestionIndex ? "active" : ""}" data-serial="${serial}">${serial}</button>
+  `).join("");
+
+  suggestionsNode.querySelectorAll(".final-tray-suggestion").forEach((btn, idx) => {
+    btn.addEventListener("mouseenter", () => {
+      finalTraySuggestionIndex = idx;
+      renderFinalTraySerialManager();
+    });
+    btn.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      const serial = btn.getAttribute("data-serial") || "";
+      const added = addSerialsToFinalTray([serial]);
+      if (added > 0) {
+        inputNode.value = "";
+      }
+      finalTraySuggestionIndex = -1;
+      renderFinalTraySerialManager();
+    });
+  });
+
+  suggestionsNode.classList.remove("hidden");
 }
 
 function sanitizeSerialToken(token) {
@@ -848,6 +1079,7 @@ function removeMarkedFromSelected() {
 window.removeFromSelected = removeFromSelected;
 window.clearAllSelected = clearAllSelected;
 window.removeMarkedFromSelected = removeMarkedFromSelected;
+window.addBulkSerialsToFinalTray = addBulkSerialsToFinalTray;
 
 function setSerialFeedback(message, isError) {
   const node = document.getElementById("serialFeedback");
