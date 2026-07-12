@@ -1,71 +1,178 @@
 .grid,
 .selection-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    align-items: start;
+}
+
+@media (min-width: 640px) {
+    .grid,
+    .selection-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 900px) {
+    .grid,
+    .selection-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1300px) {
+    .grid,
+    .selection-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1700px) {
+    .grid,
+    .selection-grid {
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 2200px) {
+    .grid,
+    .selection-grid {
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+    }
 }
 
 .card,
 .selection-card,
 .selection-empty {
-    border-radius: 24px;
+    border-radius: 20px;
 }
 
 .card,
 .selection-card {
     position: relative;
     overflow: hidden;
+    min-width: 0;
     background: var(--panel-strong);
-    border: 1px solid var(--line);
-    box-shadow: 0 14px 30px rgba(33, 26, 20, 0.05);
+    border: 2px solid transparent;
+    box-shadow: 0 10px 24px rgba(33, 26, 20, 0.06);
     transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+    cursor: pointer;
 }
 
 .card:hover,
 .selection-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 20px 38px rgba(33, 26, 20, 0.12);
+    transform: translateY(-4px);
+    box-shadow: 0 18px 34px rgba(33, 26, 20, 0.14);
 }
 
-.card img,
-.selection-card img {
-    width: 100%;
+.card-media {
+    position: relative;
     aspect-ratio: 1 / 1;
-    object-fit: cover;
+    overflow: hidden;
+    border-radius: inherit;
 }
 
-.card p,
-.selection-card p {
-    margin: 14px 12px 18px;
-    font-size: 0.95rem;
+.card-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.35s ease;
+}
+
+.card:hover .card-media img,
+.selection-card:hover .card-media img {
+    transform: scale(1.06);
+}
+
+.card-label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 22px 10px 10px;
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.55) 85%);
+    color: #fff;
+    font-size: 0.88rem;
     font-weight: 700;
     text-align: center;
+    letter-spacing: 0.02em;
+}
+
+.select-indicator {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.85);
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    display: grid;
+    place-items: center;
+    transition: background var(--transition), border-color var(--transition), transform var(--transition);
+    z-index: 2;
+}
+
+.select-indicator svg {
+    width: 14px;
+    height: 14px;
+    opacity: 0;
+    transition: opacity var(--transition);
+}
+
+.card.selected .select-indicator {
+    background: var(--success);
+    border-color: var(--success);
+    transform: scale(1.05);
+}
+
+.card.selected .select-indicator svg {
+    opacity: 1;
+    stroke: white;
 }
 
 .card.selected {
     border-color: var(--success);
-    box-shadow: 0 20px 38px rgba(31, 122, 69, 0.14);
 }
 
 .marked-card {
-    opacity: 0.85;
-    border-style: dashed;
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.marked-card::after {
+    content: "Marked";
+    position: absolute;
+    top: 14px;
+    right: -32px;
+    width: 130px;
+    padding: 4px 0;
+    background: var(--warning);
+    color: white;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    transform: rotate(40deg);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+    z-index: 2;
+}
+
+.marked-card .select-indicator {
+    display: none;
 }
 
 .marked-label {
-    margin: 0;
-    color: var(--warning);
-    font-size: 0.85rem;
-    font-weight: 700;
-    text-align: center;
+    display: none;
 }
 
 .selection-card .remove-btn {
     position: absolute;
-    top: 14px;
-    right: 14px;
-    width: 30px;
-    height: 30px;
+    top: 10px;
+    right: 10px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     background: #e74c3c;
     color: white;
@@ -74,6 +181,7 @@
     place-items: center;
     opacity: 0;
     transition: opacity var(--transition), transform var(--transition);
+    z-index: 3;
 }
 
 .selection-card:hover .remove-btn {
@@ -81,7 +189,7 @@
 }
 
 .selection-card .remove-btn:hover {
-    transform: scale(1.05);
+    transform: scale(1.08);
 }
 
 .selection-empty {

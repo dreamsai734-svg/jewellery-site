@@ -94,6 +94,7 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+    min-width: 0;
 }
 
 .workspace-side {
@@ -105,6 +106,7 @@
 
 .panel {
     padding: 20px;
+    min-width: 0;
 }
 
 .panel-heading {
@@ -152,10 +154,13 @@
 .tab-section {
     display: none;
     gap: 20px;
+    min-width: 0;
 }
 
 .tab-section.active {
     display: flex;
+    flex-direction: column;
+    min-width: 0;
 }
 
 .controls-panel,
@@ -260,4 +265,12 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+}
+
+.page-shell.browse-active .workspace {
+    grid-template-columns: 1fr;
+}
+
+.page-shell.browse-active .workspace-side {
+    display: none;
 }

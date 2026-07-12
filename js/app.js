@@ -16,6 +16,11 @@ let lastSortBy = "";
 let controlsCollapsed = false;
 let finalTraySerials = [];
 let finalTraySuggestionIndex = -1;
+let dataBySerial = new Map();
+
+function rebuildDataIndex() {
+  dataBySerial = new Map(data.map(item => [item["Serial No"], item]));
+}
 
 const API_URL = "https://script.google.com/macros/s/AKfycby4RNwxBEfKWLWCT4Y6-LFLkObAE-j4LCDBUh5Lc3eG6zAcPN1WvUqXwOXMyWDH3nA/exec";
 const APP_BUILD_TAG = "script-20260410-guard-logs-1";
@@ -42,8 +47,9 @@ async function loadData() {
   const res = await fetch(API_URL);
   const json = await res.json();
   data = Array.isArray(json) ? json : (json.data || []);
+  rebuildDataIndex();
   selected = selected.filter(id => {
-    const item = data.find(d => d["Serial No"] === id);
+    const item = dataBySerial.get(id);
     return item && normalizeStatus(item["Status"]) !== "marked";
   });
   initFilter();
@@ -132,8 +138,8 @@ function buildImageSourceCandidates(item, preferCollageFirst) {
     const driveId = extractGoogleDriveId(normalized);
     if (driveId) {
       // Prefer stable Drive variants before direct uc links.
-      add(`https://lh3.googleusercontent.com/d/${driveId}=w1600`);
-      add(`https://drive.google.com/thumbnail?id=${driveId}&sz=w1600`);
+      add(`https://lh3.googleusercontent.com/d/${driveId}=w700`);
+      add(`https://drive.google.com/thumbnail?id=${driveId}&sz=w700`);
       add(`https://drive.google.com/uc?export=view&id=${driveId}`);
     }
 
@@ -183,6 +189,11 @@ function switchTab(tabName) {
   browseBtn.classList.toggle("active", isBrowse);
   selectedBtn.classList.toggle("active", isSelected);
   finalTrayBtn.classList.toggle("active", tabName === "finalTray");
+
+  const pageShell = document.querySelector(".page-shell");
+  if (pageShell) {
+    pageShell.classList.toggle("browse-active", isBrowse);
+  }
 }
 
 function toggleControlsCollapse() {
@@ -199,8 +210,111 @@ function toggleControlsCollapse() {
   btn.title = controlsCollapsed ? "Expand controls" : "Collapse controls";
 }
 
+function toggleFilterMenu(event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const menu = document.getElementById("controlsContent");
+  const btn = document.getElementById("filterToggleBtn");
+  if (!menu || !btn) {
+    return;
+  }
+
+  const willOpen = menu.classList.contains("hidden");
+  menu.classList.toggle("hidden");
+
+  if (willOpen) {
+    positionFilterMenu(menu, btn);
+  }
+}
+
+function toggleBreakdown(event) {
+  if (event) {
+    event.stopPropagation();
+  }
+  const node = document.getElementById("countSummary");
+  const btn = document.getElementById("breakdownToggleBtn");
+  if (!node || !btn) {
+    return;
+  }
+  const isHidden = node.classList.contains("hidden");
+  node.classList.toggle("hidden");
+  btn.textContent = isHidden ? "Hide brand & type breakdown" : "View brand & type breakdown";
+}
+
+window.toggleBreakdown = toggleBreakdown;
+
+function positionFilterMenu(menu, btn) {
+  const rect = btn.getBoundingClientRect();
+  const menuWidth = menu.offsetWidth || 420;
+  const margin = 16;
+
+  let left = rect.right - menuWidth;
+  left = Math.max(margin, Math.min(left, window.innerWidth - menuWidth - margin));
+
+  let top = rect.bottom + 10;
+  const menuHeight = menu.offsetHeight || 300;
+  if (top + menuHeight > window.innerHeight - margin) {
+    top = Math.max(margin, rect.top - menuHeight - 10);
+  }
+
+  menu.style.left = `${left}px`;
+  menu.style.top = `${top}px`;
+}
+
+window.addEventListener("resize", () => {
+  const menu = document.getElementById("controlsContent");
+  const btn = document.getElementById("filterToggleBtn");
+  if (menu && btn && !menu.classList.contains("hidden")) {
+    positionFilterMenu(menu, btn);
+  }
+});
+
+window.toggleFilterMenu = toggleFilterMenu;
+
+document.addEventListener("click", (event) => {
+  const menu = document.getElementById("controlsContent");
+  const wrap = document.querySelector(".filter-menu-wrap");
+  if (!menu || !wrap) {
+    return;
+  }
+  if (!menu.classList.contains("hidden") && !wrap.contains(event.target)) {
+    menu.classList.add("hidden");
+  }
+});
+
 window.toggleControlsCollapse = toggleControlsCollapse;
 
+function renderCategoryBar(typeCounts) {
+  const bar = document.getElementById("categoryBar");
+  if (!bar) {
+    return;
+  }
+
+  const filterTypeNode = document.getElementById("filterType");
+  const activeType = filterTypeNode ? filterTypeNode.value : "";
+
+  const types = [...typeCounts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const totalCount = data.length;
+
+  let html = `<button type="button" class="category-pill ${!activeType ? 'active' : ''}" onclick='selectCategory("")'>All <span class="count">${totalCount}</span></button>`;
+
+  types.forEach(([type, count]) => {
+    html += `<button type="button" class="category-pill ${activeType === type ? 'active' : ''}" onclick='selectCategory("${type.replace(/'/g, "\\'")}")'>${type} <span class="count">${count}</span></button>`;
+  });
+
+  bar.innerHTML = html;
+}
+
+function selectCategory(type) {
+  const filterTypeNode = document.getElementById("filterType");
+  if (filterTypeNode) {
+    filterTypeNode.value = type;
+  }
+  onFilterChanged();
+}
+
+window.selectCategory = selectCategory;
 /* FILTER */
 function initFilter() {
   const typeCounts = new Map();
@@ -238,6 +352,7 @@ function initFilter() {
   }
 
   renderCountSummary(brandCounts, typeCounts);
+  renderCategoryBar(typeCounts);
 }
 
 function renderCountSummary(brandCounts, typeCounts) {
@@ -248,18 +363,24 @@ function renderCountSummary(brandCounts, typeCounts) {
 
   const topBrands = [...brandCounts.entries()]
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, 10)
-    .map(([name, count]) => `${name}: ${count}`)
-    .join(" | ");
+    .slice(0, 10);
 
   const allTypes = [...typeCounts.entries()]
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .map(([name, count]) => `${name}: ${count}`)
-    .join(" | ");
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  const renderPills = (entries) => entries
+    .map(([name, count]) => `<span class="breakdown-pill">${name} <strong>${count}</strong></span>`)
+    .join("");
 
   summaryNode.innerHTML = `
-    <p><strong>Brands:</strong> ${topBrands || "No brands found"}</p>
-    <p><strong>Types:</strong> ${allTypes || "No types found"}</p>
+    <div class="breakdown-group">
+      <p class="breakdown-label">Brands</p>
+      <div class="breakdown-pills">${renderPills(topBrands) || '<span class="breakdown-pill">No brands found</span>'}</div>
+    </div>
+    <div class="breakdown-group">
+      <p class="breakdown-label">Types</p>
+      <div class="breakdown-pills">${renderPills(allTypes) || '<span class="breakdown-pill">No types found</span>'}</div>
+    </div>
   `;
 }
 
@@ -279,6 +400,8 @@ function updateDashboardStats(visibleCount) {
   if (selectedNode) selectedNode.textContent = String(selected.length);
   if (markedNode) markedNode.textContent = String(marked);
   if (summaryNode) summaryNode.textContent = `${visibleCount} visible item${visibleCount === 1 ? "" : "s"}`;
+  const headingNode = document.getElementById("gridSummaryHeading");
+  if (headingNode) headingNode.textContent = `${visibleCount} visible item${visibleCount === 1 ? "" : "s"}`;
 }
 
 function onFilterChanged() {
@@ -286,9 +409,25 @@ function onFilterChanged() {
   lastSortBy = document.getElementById("sortBy") ? document.getElementById("sortBy").value : "";
   gridCurrentPage = 1;
   render();
+  document.querySelectorAll(".category-pill").forEach(pill => pill.classList.remove("active"));
+  const filterTypeNode = document.getElementById("filterType");
+  const activeType = filterTypeNode ? filterTypeNode.value : "";
+  document.querySelectorAll(".category-pill").forEach(pill => {
+    const label = pill.textContent.trim().split(" ")[0];
+    if ((!activeType && label === "All") || label === activeType) {
+      pill.classList.add("active");
+    }
+  });
 }
-
 window.onFilterChanged = onFilterChanged;
+let searchDebounceTimer = null;
+function onSearchInput() {
+  clearTimeout(searchDebounceTimer);
+  searchDebounceTimer = setTimeout(() => {
+    onFilterChanged();
+  }, 250);
+}
+window.onSearchInput = onSearchInput;
 
 /* RENDER GRID */
 function render() {
@@ -303,6 +442,8 @@ function render() {
   const pageItems = filtered.slice(startIndex, startIndex + gridPageSize);
   let html = "";
 
+  const checkSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
   pageItems.forEach(item => {
     const status = normalizeStatus(item["Status"]);
     let isSelected = selected.includes(item["Serial No"]);
@@ -314,9 +455,11 @@ function render() {
 
     html += `
       <div class="card ${isSelected ? 'selected' : ''} ${status === "marked" ? "marked-card" : ""}" onclick='toggle("${item["Serial No"]}")'>
-        <img src="${imageUrl}" ${onErrorAttr}>
-        <p>${item["Serial No"]}</p>
-        ${status === "marked" ? '<p class="marked-label">Marked</p>' : ''}
+        <div class="card-media">
+          <img src="${imageUrl}" loading="lazy" ${onErrorAttr}>
+          <div class="select-indicator">${checkSvg}</div>
+          <p class="card-label">${item["Serial No"]}</p>
+        </div>
       </div>
     `;
   });
@@ -401,8 +544,10 @@ function renderSelected() {
       return `
       <div class="selection-card">
         <button class="remove-btn" onclick="removeFromSelected('${item["Serial No"].replace(/'/g, "\\'")}')" title="Remove from selection">✕</button>
-        <img src="${primaryUrl}" alt="${item["Serial No"]}" ${onErrorAttr}>
-        <p>${item["Serial No"]}</p>
+        <div class="card-media">
+          <img src="${primaryUrl}" alt="${item["Serial No"]}" loading="lazy" ${onErrorAttr}>
+          <p class="card-label">${item["Serial No"]}</p>
+        </div>
       </div>
     `;
     }).join("");
@@ -1092,7 +1237,7 @@ function clearAllSelected() {
 
 function removeMarkedFromSelected() {
   const markedInSelection = selected.filter(id => {
-    const item = data.find(d => d["Serial No"] === id);
+    const item = dataBySerial.get(id);
     return item && normalizeStatus(item["Status"]) === "marked";
   });
 
@@ -1103,7 +1248,7 @@ function removeMarkedFromSelected() {
 
   if (confirm(`Remove ${markedInSelection.length} marked item(s)?`)) {
     selected = selected.filter(id => {
-      const item = data.find(d => d["Serial No"] === id);
+      const item = dataBySerial.get(id);
       return !(item && normalizeStatus(item["Status"]) === "marked");
     });
     updateTabBadge();
@@ -1497,19 +1642,21 @@ async function isMostlyWhiteBlob(blob) {
 
         const pixels = ctx.getImageData(0, 0, width, height).data;
         let whiteCount = 0;
-        const total = width * height;
+        let sampledCount = 0;
+        const SAMPLE_STRIDE = 10; // check every 10th pixel instead of every pixel
 
-        for (let i = 0; i < pixels.length; i += 4) {
+        for (let i = 0; i < pixels.length; i += 4 * SAMPLE_STRIDE) {
           const r = pixels[i];
           const g = pixels[i + 1];
           const b = pixels[i + 2];
+          sampledCount++;
           if (r > 245 && g > 245 && b > 245) {
             whiteCount++;
           }
         }
 
         URL.revokeObjectURL(url);
-        resolve(whiteCount / total > 0.99);
+        resolve(whiteCount / sampledCount > 0.99);
       } catch (err) {
         URL.revokeObjectURL(url);
         resolve(false);
