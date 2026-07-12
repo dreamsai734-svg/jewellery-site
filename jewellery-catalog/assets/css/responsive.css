@@ -1,0 +1,67 @@
+@media (max-width: 1100px) {
+
+    .hero,
+    .process-strip,
+    .workspace {
+        grid-template-columns: 1fr;
+    }
+
+    .preview-panel {
+        min-height: 0;
+    }
+}
+
+@media (max-width: 720px) {
+    .page-shell {
+        padding: 16px;
+    }
+
+    .hero-copy,
+    .panel {
+        padding: 16px;
+    }
+
+    .hero-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .process-strip {
+        gap: 12px;
+    }
+
+    .panel-heading {
+        flex-direction: column;
+    }
+
+    .tabs {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .tab-btn {
+        flex: 1 1 0;
+    }
+
+    .controls select,
+    .hide-marked-toggle {
+        width: 100%;
+    }
+
+    .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .selection-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .secondary-actions .btn,
+    .primary-actions .btn {
+        width: 100%;
+    }
+
+    .pdf-preview-shell,
+    #pdfPreviewFrame {
+        min-height: 70vh;
+    }
+}
