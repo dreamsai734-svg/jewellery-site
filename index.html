@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Jewellery PDF Studio</title>
+  <meta charset="UTF-8">
+  <title>Jewellery Catalog PDF Studio</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Jewellery Catalog PDF Studio — browse your catalog, curate selections, and export polished client-ready PDF documents.">
+  <meta name="theme-color" content="#f7f4ef">
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="assets/css/app.css">
 </head>
@@ -11,79 +14,85 @@
 <div class="page-shell">
   <header class="hero">
     <div class="hero-copy">
-      <p class="eyebrow">Jewellery PDF Studio</p>
-      <h1>client PDF</h1>
-      <p class="hero-text">Select from your catalogue, prepare a WhatsApp-ready PDF, preview it live, and move approved pieces into the final tray workflow.</p>
+      <p class="eyebrow">Jewellery Catalog PDF Studio</p>
+      <h1>Create elegant client-ready jewellery PDFs</h1>
+      <p class="hero-text">Browse your inventory, select standout pieces, preview polished PDFs instantly, and export final-tray documents with a refined client experience.</p>
+      <div class="hero-actions">
+        <button class="btn btn-primary" onclick="generateSelectionPdf()">Create Selection PDF</button>
+        <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download Sample</button>
+      </div>
     </div>
+
     <div class="hero-stats">
-      <article class="stat-card">
+      <article class="stat-card accent animate-card">
         <span id="statTotal">0</span>
-        <p>Total Pieces</p>
+        <p>Total catalogue items</p>
       </article>
-      <article class="stat-card">
+      <article class="stat-card animate-card">
         <span id="statAvailable">0</span>
-        <p>Available</p>
+        <p>Available pieces</p>
       </article>
-      <article class="stat-card">
+      <article class="stat-card animate-card">
         <span id="statSelected">0</span>
-        <p>Selected</p>
+        <p>Items selected</p>
       </article>
-      <article class="stat-card accent">
+      <article class="stat-card animate-card accent">
         <span id="statMarked">0</span>
-        <p>Marked</p>
+        <p>Marked items</p>
       </article>
     </div>
   </header>
 
   <main class="workspace">
     <section class="workspace-main">
-      <div class="panel tabs-panel">
-        <div class="tabs">
-          <button id="tabBrowseBtn" class="tab-btn active" onclick="switchTab('browse')">Browse Items <span id="browseTabBadge" class="tab-badge"></span></button>
-          <button id="tabSelectedBtn" class="tab-btn" onclick="switchTab('selected')">Selected Items</button>
-          <button id="tabFinalTrayBtn" class="tab-btn" onclick="switchTab('finalTray')">Final Tray by Serial</button>
+      <div class="panel tabs-panel floating-panel">
+        <div class="tabs" role="tablist" aria-label="Application tabs">
+          <button id="tabBrowseBtn" class="tab-btn active" onclick="switchTab('browse')" role="tab" aria-selected="true">Browse catalogue</button>
+          <button id="tabSelectedBtn" class="tab-btn" onclick="switchTab('selected')" role="tab">Selected items</button>
+          <button id="tabFinalTrayBtn" class="tab-btn" onclick="switchTab('finalTray')" role="tab">Final tray</button>
         </div>
       </div>
 
       <section id="browseTab" class="tab-section active">
-        <div class="panel controls-panel">
-          <div class="panel-heading compact controls-heading" style="cursor: pointer;" onclick="toggleControlsCollapse()">
+        <div class="panel controls-panel floating-panel">
+          <div class="panel-heading compact controls-heading" onclick="toggleControlsCollapse()" role="button" aria-expanded="true">
             <div>
-              <p class="eyebrow small">Catalogue Controls</p>
-              <h3>Filter and select items</h3>
+              <p class="eyebrow small">Catalogue controls</p>
+              <h3>Refine, filter and choose</h3>
             </div>
             <div class="heading-actions">
               <p id="gridSummary" class="panel-meta">0 visible items</p>
-              <button id="collapseBtn" class="collapse-btn" title="Collapse controls">−</button>
+              <button id="collapseBtn" class="collapse-btn" title="Toggle controls">−</button>
             </div>
           </div>
+
           <div id="controlsContent" class="controls-content">
             <div id="countSummary" class="count-summary"></div>
             <div class="controls">
-            <input id="searchSerial" type="text" placeholder="Search by serial..." onkeyup="onFilterChanged()" class="search-input">
-            <select id="filterType" onchange="onFilterChanged()"></select>
-            <select id="filterBrand" onchange="onFilterChanged()"></select>
-            <select id="sortBy" onchange="onFilterChanged()">
-              <option value="">Sort by</option>
-              <option value="serial">Serial No.</option>
-              <option value="brand">Brand</option>
-              <option value="type">Type</option>
-            </select>
-            <select id="filterStatus" onchange="onFilterChanged()">
-              <option value="">All Status</option>
-              <option value="unmarked">Unmarked</option>
-              <option value="marked">Marked</option>
-            </select>
-            <label class="hide-marked-toggle">
-              <input id="hideMarked" type="checkbox" checked onchange="onFilterChanged()">
-              Hide Marked
-            </label>
-            <button class="btn btn-secondary" onclick="selectAllByBrand()">Select Whole Brand</button>
-          </div>
+              <input id="searchSerial" type="text" placeholder="Search by serial" onkeyup="onFilterChanged()" class="search-input">
+              <select id="filterType" onchange="onFilterChanged()" aria-label="Filter by type"></select>
+              <select id="filterBrand" onchange="onFilterChanged()" aria-label="Filter by brand"></select>
+              <select id="sortBy" onchange="onFilterChanged()" aria-label="Sort items">
+                <option value="">Sort by</option>
+                <option value="serial">Serial No.</option>
+                <option value="brand">Brand</option>
+                <option value="type">Type</option>
+              </select>
+              <select id="filterStatus" onchange="onFilterChanged()" aria-label="Filter by status">
+                <option value="">All status</option>
+                <option value="unmarked">Unmarked</option>
+                <option value="marked">Marked</option>
+              </select>
+              <label class="hide-marked-toggle">
+                <input id="hideMarked" type="checkbox" checked onchange="onFilterChanged()">
+                Hide marked
+              </label>
+              <button class="btn btn-secondary" onclick="selectAllByBrand()">Select full brand</button>
+            </div>
           </div>
         </div>
 
-        <div class="panel grid-panel">
+        <div class="panel grid-panel floating-panel">
           <div class="grid" id="grid"></div>
           <div class="grid-pager" id="gridPager">
             <button class="btn btn-secondary pager-btn" onclick="goToPrevPage()">Previous</button>
@@ -97,21 +106,21 @@
             </select>
           </div>
         </div>
-
       </section>
 
       <section id="selectedTab" class="tab-section">
-        <div class="panel selection-panel">
+        <div class="panel floating-panel">
           <div class="panel-heading compact">
             <div>
               <p class="eyebrow small">Selection</p>
-              <h3>Items queued for PDF</h3>
+              <h3>Items queued for export</h3>
             </div>
             <p id="selectedSummary" class="panel-meta">0 selected items</p>
           </div>
+
           <div class="bulk-toolbar">
-            <button class="btn btn-secondary btn-sm" onclick="clearAllSelected()">Clear All</button>
-            <button class="btn btn-secondary btn-sm" onclick="removeMarkedFromSelected()">Remove Marked</button>
+            <button class="btn btn-secondary btn-sm" onclick="clearAllSelected()">Clear all</button>
+            <button class="btn btn-secondary btn-sm" onclick="removeMarkedFromSelected()">Remove marked items</button>
           </div>
 
           <div id="selectedArea" class="selection-grid"></div>
@@ -128,46 +137,43 @@
           </div>
         </div>
 
-        <div class="actions primary-actions">
-          <button class="btn btn-primary" onclick="generateSelectionPdf()">Generate Selection PDF</button>
-          <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download PDF</button>
-          <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download Cover Page</button>
-          <button class="btn btn-secondary" onclick="shareCurrentPdf()">Share to WhatsApp</button>
+        <div class="actions primary-actions floating-panel">
+          <button class="btn btn-primary" onclick="generateSelectionPdf()">Create selection PDF</button>
+          <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download selection PDF</button>
+          <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download cover page</button>
+          <button class="btn btn-secondary" onclick="shareCurrentPdf()">Share via WhatsApp</button>
         </div>
       </section>
 
       <section id="finalTrayTab" class="tab-section">
-        <div class="panel final-tray-panel">
+        <div class="panel final-tray-panel floating-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow small">Final Tray</p>
-              <h3>Generate a marked PDF from serial codes</h3>
+              <p class="eyebrow small">Final tray</p>
+              <h3>Build the final client list</h3>
             </div>
-            <p class="panel-meta">Paste serial numbers separated by comma, semicolon, or a new line.</p>
+            <p class="panel-meta">Paste serial numbers, add items, and generate a final tray PDF.</p>
           </div>
 
           <div class="final-tray-entry">
-            <textarea id="serialBulkInput" rows="5" placeholder="Paste serial codes separated by comma, semicolon, or new line.
-Example:
-RING-AB1234
-NECK-XY9876"></textarea>
-            <button class="btn btn-secondary" type="button" onclick="addBulkSerialsToFinalTray()">Add Codes to Final List</button>
+            <textarea id="serialBulkInput" rows="5" placeholder="Paste serial codes separated by comma, semicolon, or new line. Example: RING-AB1234 NECK-XY9876"></textarea>
+            <button class="btn btn-secondary" type="button" onclick="addBulkSerialsToFinalTray()">Add codes to tray</button>
           </div>
 
           <div class="final-tray-search-shell">
-            <label for="finalTraySearchInput">Search/Add Serial Code</label>
-            <input id="finalTraySearchInput" type="text" autocomplete="off" placeholder="Type code to search suggestions, then press Enter to add">
+            <label for="finalTraySearchInput">Search or add serial code</label>
+            <input id="finalTraySearchInput" type="text" autocomplete="off" placeholder="Type a code to find suggestions and press Enter to add">
             <div id="finalTraySuggestions" class="final-tray-suggestions hidden"></div>
           </div>
 
-          <div id="finalTrayListMeta" class="panel-meta">0 codes in final tray list</div>
+          <div id="finalTrayListMeta" class="panel-meta">0 codes in final tray</div>
           <div id="finalTrayList" class="final-tray-list"></div>
 
           <div class="actions primary-actions">
-            <button class="btn btn-primary" onclick="generateFinalTrayFromSerials()">Generate Final Tray PDF + Mark in Excel</button>
-            <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download Final Tray PDF</button>
-            <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download Cover Page</button>
-            <button class="btn btn-secondary" onclick="shareFinalTrayPdf()">Share Final Tray PDF</button>
+            <button class="btn btn-primary" onclick="generateFinalTrayFromSerials()">Create final tray PDF</button>
+            <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download final tray PDF</button>
+            <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download cover page</button>
+            <button class="btn btn-secondary" onclick="shareFinalTrayPdf()">Share final tray PDF</button>
           </div>
           <div id="serialFeedback" class="feedback"></div>
         </div>
@@ -175,11 +181,11 @@ NECK-XY9876"></textarea>
     </section>
 
     <aside class="workspace-side">
-      <div class="panel preview-panel">
+      <div class="panel preview-panel floating-panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow small">Live Preview</p>
-            <h3>PDF Preview</h3>
+            <p class="eyebrow small">Live preview</p>
+            <h3>Preview generated PDF</h3>
           </div>
           <p id="pdfMeta" class="panel-meta">No PDF generated yet</p>
         </div>
@@ -187,15 +193,15 @@ NECK-XY9876"></textarea>
         <div class="pdf-preview-shell">
           <div id="previewPlaceholder" class="preview-placeholder">
             <strong>Generate a PDF to preview it here.</strong>
-            <span>The preview updates after selection PDFs and final tray PDFs are created.</span>
+            <span>The preview will update after a selection or final tray PDF is created.</span>
           </div>
           <iframe id="pdfPreviewFrame" title="Jewellery PDF Preview"></iframe>
         </div>
 
-        <div class="actions secondary-actions">
-          <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download Current PDF</button>
-          <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download Cover Page</button>
-          <button class="btn btn-secondary" onclick="shareCurrentPdf()">Share Current PDF</button>
+        <div class="actions secondary-actions preview-actions">
+          <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download current PDF</button>
+          <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download cover page</button>
+          <button class="btn btn-secondary" onclick="shareCurrentPdf()">Share current PDF</button>
         </div>
       </div>
     </aside>
@@ -203,7 +209,7 @@ NECK-XY9876"></textarea>
 
   <div id="spinner" class="spinner hidden">
     <div class="loader"></div>
-    <p>Preparing PDF...</p>
+    <p>Preparing PDF…</p>
   </div>
 </div>
 
@@ -211,6 +217,5 @@ NECK-XY9876"></textarea>
 <script src="assets/js/vendor/html2canvas.min.js"></script>
 <script src="js/pdf/pdf.js"></script>
 <script src="js/app.js"></script>
-
 </body>
 </html>

@@ -1,9 +1,11 @@
 @media (max-width: 1100px) {
-
     .hero,
-    .process-strip,
     .workspace {
         grid-template-columns: 1fr;
+    }
+
+    .hero-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .preview-panel {
@@ -11,57 +13,66 @@
     }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 820px) {
     .page-shell {
-        padding: 16px;
+        padding: 22px 18px 28px;
     }
 
     .hero-copy,
     .panel {
-        padding: 16px;
+        padding: 22px;
     }
 
-    .hero-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .process-strip {
-        gap: 12px;
-    }
-
-    .panel-heading {
+    .hero-actions,
+    .actions,
+    .preview-actions,
+    .bulk-toolbar {
         flex-direction: column;
     }
 
     .tabs {
-        width: 100%;
-        justify-content: space-between;
+        flex-direction: column;
+        gap: 10px;
     }
 
     .tab-btn {
-        flex: 1 1 0;
-    }
-
-    .controls select,
-    .hide-marked-toggle {
         width: 100%;
     }
 
-    .grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+    .controls {
+        grid-template-columns: 1fr;
     }
 
+    .grid,
     .selection-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .secondary-actions .btn,
-    .primary-actions .btn {
-        width: 100%;
+    .preview-actions {
+        justify-content: space-between;
+    }
+}
+
+@media (max-width: 620px) {
+    .hero-copy h1 {
+        font-size: 2.4rem;
+    }
+
+    .hero-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .grid,
+    .selection-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .final-tray-list {
+        padding: 14px;
     }
 
     .pdf-preview-shell,
     #pdfPreviewFrame {
-        min-height: 70vh;
+        min-height: 52vh;
     }
 }

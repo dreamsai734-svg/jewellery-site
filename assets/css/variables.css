@@ -1,15 +1,20 @@
+/* Theme variables */
 :root {
-    --bg: #f4f1ea;
-    --panel: rgba(255, 255, 255, 0.86);
+    --bg: #f8f4ee;
+    --surface: #ffffff;
+    --panel: rgba(255, 255, 255, 0.92);
     --panel-strong: #ffffff;
     --ink: #1f2328;
-    --muted: #616977;
-    --line: #ddd4c7;
-    --accent: #9d5c3f;
-    --accent-dark: #6c3b25;
-    --accent-soft: #f2e2d8;
-    --success: #1f7a45;
-    --warning: #b36c13;
-    --shadow: 0 20px 60px rgba(51, 36, 26, 0.12);
-    --radius: 22px;
+    --muted: #6b6f78;
+    --line: #e7dcd0;
+    --accent: #8b5d42;
+    --accent-dark: #5e3927;
+    --accent-soft: #f5e5d7;
+    --success: #1f7e58;
+    --warning: #b86d10;
+    --shadow: 0 24px 60px rgba(33, 26, 20, 0.14);
+    --radius: 26px;
+    --radius-sm: 16px;
+    --text-large: 1.15rem;
+    --transition: 0.22s ease;
 }
