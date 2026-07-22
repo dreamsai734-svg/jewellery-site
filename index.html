@@ -17,86 +17,7 @@
 <link rel="stylesheet" href="assets/css/cards.css">
 <link rel="stylesheet" href="assets/css/preview.css">
 <link rel="stylesheet" href="assets/css/responsive.css">
-  <style>
-    .mini-website-modal {
-      position: fixed;
-      inset: 0;
-      background: rgba(21, 19, 16, 0.62);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      z-index: 2000;
-    }
-
-    .mini-website-modal.hidden {
-      display: none;
-    }
-
-    .mini-website-modal-card {
-      width: min(760px, 100%);
-      background: #fffdf9;
-      border-radius: 24px;
-      border: 1px solid #eadfce;
-      box-shadow: 0 24px 60px rgba(33, 26, 20, 0.2);
-      padding: 24px;
-    }
-
-    .mini-website-field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 12px;
-    }
-
-    .mini-website-field label {
-      font-weight: 700;
-      color: #8b5d42;
-    }
-
-    .mini-website-field input,
-    .mini-website-field select {
-      border: 1px solid #eadfce;
-      border-radius: 999px;
-      padding: 10px 12px;
-      font: inherit;
-    }
-
-    .mini-website-preview {
-      margin-top: 14px;
-      border: 1px solid #eadfce;
-      border-radius: 18px;
-      padding: 16px;
-      background: linear-gradient(135deg, #fffdf9 0%, #f8eee4 100%);
-    }
-
-    .mini-website-preview .preview-name {
-      font-size: 1.02rem;
-      font-weight: 800;
-      margin-bottom: 6px;
-    }
-
-    .mini-website-preview .preview-sub {
-      color: #6d655d;
-      margin: 0 0 8px;
-    }
-
-    .mini-website-preview .preview-chip-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 6px;
-    }
-
-    .mini-website-preview .preview-chip {
-      border-radius: 999px;
-      padding: 6px 10px;
-      background: rgba(139, 93, 66, 0.1);
-      color: #8b5d42;
-      font-size: 0.9rem;
-      font-weight: 700;
-    }
-  </style>
+<link rel="stylesheet" href="assets/css/mini-website.css">
 <body>
 <div class="page-shell browse-active">
   <header class="hero">
@@ -309,6 +230,9 @@
           <div id="miniWebsitePreview" class="mini-website-preview">
             <p class="panel-meta">Choose a user name and purpose, then preview the mini website here before sharing.</p>
           </div>
+          <div class="actions secondary-actions preview-actions" style="margin-top: 12px; justify-content: flex-start;">
+            <button class="btn btn-secondary" onclick="openMiniWebsiteModal()">Create mini website preview</button>
+          </div>
         </div>
 
         <div class="actions secondary-actions preview-actions">
@@ -360,6 +284,8 @@
 <script src="assets/js/vendor/jspdf.min.js" defer></script>
 <script src="assets/js/vendor/html2canvas.min.js" defer></script>
 <script src="js/pdf/pdf.js" defer></script>
+<script src="js/modules/catalog-data.js" defer></script>
+<script src="js/modules/mini-website.js" defer></script>
 <script src="js/app.js" defer></script>
 </body>
 </html>
