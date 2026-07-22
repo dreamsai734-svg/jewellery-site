@@ -17,8 +17,86 @@
 <link rel="stylesheet" href="assets/css/cards.css">
 <link rel="stylesheet" href="assets/css/preview.css">
 <link rel="stylesheet" href="assets/css/responsive.css">
-</head>
+  <style>
+    .mini-website-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(21, 19, 16, 0.62);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 2000;
+    }
 
+    .mini-website-modal.hidden {
+      display: none;
+    }
+
+    .mini-website-modal-card {
+      width: min(760px, 100%);
+      background: #fffdf9;
+      border-radius: 24px;
+      border: 1px solid #eadfce;
+      box-shadow: 0 24px 60px rgba(33, 26, 20, 0.2);
+      padding: 24px;
+    }
+
+    .mini-website-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .mini-website-field label {
+      font-weight: 700;
+      color: #8b5d42;
+    }
+
+    .mini-website-field input,
+    .mini-website-field select {
+      border: 1px solid #eadfce;
+      border-radius: 999px;
+      padding: 10px 12px;
+      font: inherit;
+    }
+
+    .mini-website-preview {
+      margin-top: 14px;
+      border: 1px solid #eadfce;
+      border-radius: 18px;
+      padding: 16px;
+      background: linear-gradient(135deg, #fffdf9 0%, #f8eee4 100%);
+    }
+
+    .mini-website-preview .preview-name {
+      font-size: 1.02rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .mini-website-preview .preview-sub {
+      color: #6d655d;
+      margin: 0 0 8px;
+    }
+
+    .mini-website-preview .preview-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .mini-website-preview .preview-chip {
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(139, 93, 66, 0.1);
+      color: #8b5d42;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+  </style>
 <body>
 <div class="page-shell browse-active">
   <header class="hero">
@@ -29,6 +107,7 @@
       <div class="hero-actions">
         <button class="btn btn-primary" onclick="generateSelectionPdf()">Create Selection PDF</button>
         <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download Sample</button>
+        <button class="btn btn-secondary" onclick="openMiniWebsiteModal()">Share Mini Website</button>
       </div>
     </div>
 
@@ -163,6 +242,7 @@
           <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download selection PDF</button>
           <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download cover page</button>
           <button class="btn btn-secondary" onclick="shareCurrentPdf()">Share via WhatsApp</button>
+          <button class="btn btn-secondary" onclick="openMiniWebsiteModal()">Share mini website</button>
         </div>
       </section>
 
@@ -219,6 +299,18 @@
           <iframe id="pdfPreviewFrame" title="Jewellery PDF Preview"></iframe>
         </div>
 
+        <div class="panel mini-preview-panel floating-panel" style="margin-top: 12px;">
+          <div class="panel-heading compact">
+            <div>
+              <p class="eyebrow small">Mini website preview</p>
+              <h3>Preview before sharing</h3>
+            </div>
+          </div>
+          <div id="miniWebsitePreview" class="mini-website-preview">
+            <p class="panel-meta">Choose a user name and purpose, then preview the mini website here before sharing.</p>
+          </div>
+        </div>
+
         <div class="actions secondary-actions preview-actions">
           <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download current PDF</button>
           <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download cover page</button>
@@ -231,6 +323,37 @@
   <div id="spinner" class="spinner hidden">
     <div class="loader"></div>
     <p>Preparing PDF…</p>
+  </div>
+</div>
+
+<div id="miniWebsiteModal" class="mini-website-modal hidden" role="dialog" aria-modal="true" aria-labelledby="miniWebsiteModalTitle">
+  <div class="mini-website-modal-card">
+    <div class="panel-heading compact">
+      <div>
+        <p class="eyebrow small">Mini website setup</p>
+        <h3 id="miniWebsiteModalTitle">Create a polished handoff</h3>
+      </div>
+    </div>
+
+    <div class="mini-website-field">
+      <label for="miniWebsiteNameInput">User name</label>
+      <input id="miniWebsiteNameInput" type="text" placeholder="Enter the stylist or client name">
+    </div>
+
+    <div class="mini-website-field">
+      <label for="miniWebsitePurposeSelect">Purpose</label>
+      <select id="miniWebsitePurposeSelect">
+        <option value="review">Review</option>
+        <option value="final">Final</option>
+      </select>
+    </div>
+
+    <div id="miniWebsiteModalPreview" class="mini-website-preview"></div>
+
+    <div class="actions secondary-actions preview-actions" style="margin-top: 14px; justify-content: flex-end;">
+      <button class="btn btn-secondary" onclick="closeMiniWebsiteModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createMiniWebsiteFromModal()">Create mini website</button>
+    </div>
   </div>
 </div>
 

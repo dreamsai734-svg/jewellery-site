@@ -17,6 +17,7 @@ let controlsCollapsed = false;
 let finalTraySerials = [];
 let finalTraySuggestionIndex = -1;
 let dataBySerial = new Map();
+let miniWebsiteMeta = { name: "", purpose: "review" };
 
 function rebuildDataIndex() {
   dataBySerial = new Map(data.map(item => [item["Serial No"], item]));
@@ -55,6 +56,17 @@ async function loadData() {
   initFilter();
   render();
   renderFinalTraySerialManager();
+  updateMiniWebsiteModalPreview();
+}
+
+async function getInventoryForExport() {
+  if (Array.isArray(data) && data.length) {
+    return data;
+  }
+
+  const res = await fetch(API_URL);
+  const json = await res.json();
+  return Array.isArray(json) ? json : (json.data || []);
 }
 
 function normalizeStatus(status) {
@@ -1448,14 +1460,483 @@ function triggerBlobDownload(blob, fileName) {
   const a = document.createElement("a");
   a.href = url;
   a.download = fileName;
+  a.style.display = "none";
   document.body.appendChild(a);
   a.click();
   a.remove();
 
   setTimeout(() => {
     URL.revokeObjectURL(url);
-  }, 1000);
+  }, 2000);
 }
+
+function openBlobPreview(blob, fileName) {
+  const previewUrl = URL.createObjectURL(blob);
+  const previewWindow = window.open(previewUrl, "_blank", "noopener,noreferrer");
+
+  if (!previewWindow) {
+    const fallbackLink = document.createElement("a");
+    fallbackLink.href = previewUrl;
+    fallbackLink.target = "_blank";
+    fallbackLink.rel = "noopener noreferrer";
+    fallbackLink.style.display = "none";
+    document.body.appendChild(fallbackLink);
+    fallbackLink.click();
+    fallbackLink.remove();
+  }
+
+  setTimeout(() => {
+    URL.revokeObjectURL(previewUrl);
+  }, 10000);
+
+  return previewUrl;
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function getMiniWebsiteSelectionItems() {
+  const selectedSerialSet = new Set(
+    (Array.isArray(selected) ? selected : []).map(normalizeSerialForMatching)
+  );
+
+  return data.filter(item => selectedSerialSet.has(normalizeSerialForMatching(item["Serial No"])));
+}
+
+function setMiniWebsiteMeta(name, purpose) {
+  miniWebsiteMeta = {
+    name: String(name || "").trim(),
+    purpose: purpose === "final" ? "final" : "review"
+  };
+}
+
+function bindMiniWebsitePreviewInputs() {
+  const nameInput = document.getElementById("miniWebsiteNameInput");
+  const purposeSelect = document.getElementById("miniWebsitePurposeSelect");
+
+  if (!nameInput || !purposeSelect) {
+    return;
+  }
+
+  if (nameInput.dataset.previewBound === "true") {
+    return;
+  }
+
+  nameInput.addEventListener("input", updateMiniWebsiteModalPreview);
+  purposeSelect.addEventListener("change", updateMiniWebsiteModalPreview);
+  nameInput.dataset.previewBound = "true";
+  purposeSelect.dataset.previewBound = "true";
+}
+
+function openMiniWebsiteModal() {
+  const modal = document.getElementById("miniWebsiteModal");
+  const nameInput = document.getElementById("miniWebsiteNameInput");
+  const purposeSelect = document.getElementById("miniWebsitePurposeSelect");
+
+  if (!modal || !nameInput || !purposeSelect) {
+    return;
+  }
+
+  bindMiniWebsitePreviewInputs();
+  nameInput.value = miniWebsiteMeta.name || "";
+  purposeSelect.value = miniWebsiteMeta.purpose || "review";
+  modal.classList.remove("hidden");
+  updateMiniWebsiteModalPreview();
+}
+
+function closeMiniWebsiteModal() {
+  const modal = document.getElementById("miniWebsiteModal");
+  if (modal) {
+    modal.classList.add("hidden");
+  }
+}
+
+function renderMiniWebsitePreview(containerId) {
+  const preview = document.getElementById(containerId);
+  if (!preview) {
+    return;
+  }
+
+  const nameInput = document.getElementById("miniWebsiteNameInput");
+  const purposeSelect = document.getElementById("miniWebsitePurposeSelect");
+  const hasModalInputs = Boolean(nameInput && purposeSelect);
+  const nameValue = (hasModalInputs ? nameInput.value : miniWebsiteMeta.name || "").trim() || "Guest";
+  const purpose = (hasModalInputs ? purposeSelect.value : miniWebsiteMeta.purpose || "review") === "final" ? "final" : "review";
+  const previewItems = getMiniWebsiteSelectionItems().slice(0, 4);
+  const purposeLabel = purpose === "final" ? "Final handoff" : "Review handoff";
+  const selectedCount = Array.isArray(selected) ? selected.length : 0;
+  const selectionLabel = selectedCount ? `${selectedCount} selected product${selectedCount === 1 ? "" : "s"}` : "No products selected yet";
+
+  preview.innerHTML = `
+    <p class="preview-name">${escapeHtml(nameValue)} · ${escapeHtml(purposeLabel)}</p>
+    <p class="preview-sub">This preview will be used for the mini website and currently shows ${escapeHtml(selectionLabel)}.</p>
+    <div class="preview-chip-row">
+      <span class="preview-chip">Stylist: ${escapeHtml(nameValue)}</span>
+      <span class="preview-chip">Purpose: ${escapeHtml(purpose === "final" ? "Final" : "Review")}</span>
+      <span class="preview-chip">Selection: ${selectedCount}</span>
+    </div>
+    ${previewItems.length ? `<div class="preview-chip-row">${previewItems.map(item => `<span class="preview-chip">${escapeHtml(item["Serial No"] || "")}</span>`).join("")}</div>` : ""}
+  `;
+}
+
+function updateMiniWebsiteModalPreview() {
+  renderMiniWebsitePreview("miniWebsiteModalPreview");
+  renderMiniWebsitePreview("miniWebsitePreview");
+}
+
+function normalizeSerialForMatching(value) {
+  return String(value || "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+function buildMiniWebsiteHtml(inventoryItems, initialSelectedSerials = [], options = {}) {
+  const selectedSerialSet = new Set(
+    (Array.isArray(initialSelectedSerials) ? initialSelectedSerials : []).map(normalizeSerialForMatching)
+  );
+
+  const filteredInventory = inventoryItems.filter(item => {
+    const serial = normalizeSerialForMatching(item["Serial No"]);
+    return selectedSerialSet.has(serial);
+  });
+
+  const safeInventory = filteredInventory.map(item => ({
+    "Serial No": item["Serial No"],
+    "Brand Name": item["Brand Name"],
+    "Type": item["Type"],
+    "Status": item["Status"],
+    "DisplayURL": item["DisplayURL"],
+    "CollageURL": item["CollageURL"]
+  }));
+
+  const safeSelected = initialSelectedSerials.filter(Boolean);
+  const inventoryJson = JSON.stringify(safeInventory, null, 2);
+  const selectedJson = JSON.stringify(safeSelected);
+  const metaJson = JSON.stringify({
+    name: String(options.name || miniWebsiteMeta.name || "").trim(),
+    purpose: options.purpose === "final" ? "final" : "review"
+  });
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jewellery Mini Website</title>
+  <style>
+    :root { color-scheme: light; --bg:#f8f4ee; --panel:#fffdf9; --ink:#221b13; --muted:#6d655d; --line:#eadfce; --accent:#8b5d42; --review:#f4c542; --final:#1f7e58; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, Arial, sans-serif; background: linear-gradient(135deg, #fef9f3 0%, var(--bg) 100%); color: var(--ink); }
+    .page { max-width: 1280px; margin: 0 auto; padding: 24px 18px 56px; }
+    .hero { background: linear-gradient(135deg, #fffdf9 0%, #f9efe7 100%); border: 1px solid var(--line); border-radius: 28px; padding: 24px; box-shadow: 0 18px 48px rgba(31, 23, 19, 0.08); }
+    .hero h1 { margin: 0 0 8px; font-size: clamp(1.5rem, 2.2vw, 2.25rem); }
+    .hero p { margin: 0 0 16px; color: var(--muted); line-height: 1.6; }
+    .hero-grid { display: grid; gap: 16px; grid-template-columns: 1.4fr 0.9fr; align-items: start; }
+    .controls { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 16px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    label { font-size: 0.92rem; font-weight: 700; color: var(--accent); }
+    input, select, button { font: inherit; padding: 10px 12px; border-radius: 999px; border: 1px solid var(--line); }
+    button { cursor: pointer; background: var(--accent); color: #fff; border: none; }
+    button.secondary { background: #fff; color: var(--accent); border: 1px solid var(--line); }
+    .share-card { background: #fff; border: 1px solid var(--line); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+    .share-card .title { font-weight: 800; margin: 0; }
+    .share-card .sub { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    .share-card svg { width: 140px; height: 140px; background: #fff; border-radius: 14px; border: 1px solid var(--line); padding: 8px; }
+    .meta { display: flex; justify-content: space-between; gap: 10px; align-items: center; flex-wrap: wrap; margin: 20px 0 12px; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px; background: rgba(139, 93, 66, 0.1); color: var(--accent); font-weight: 700; }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    .card { position: relative; border-radius: 18px; overflow: hidden; border: 2px solid transparent; background: #fff; box-shadow: 0 12px 30px rgba(31, 23, 19, 0.08); transition: transform 0.2s ease, box-shadow 0.2s ease; cursor: pointer; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(31, 23, 19, 0.12); }
+    .card img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; display: block; }
+    .card .body { padding: 10px; }
+    .card .title { font-weight: 700; margin: 0 0 4px; }
+    .card .sub { color: var(--muted); font-size: 0.86rem; margin: 0; }
+    .card.selected-review { border-color: var(--review); background: #fff8d6; }
+    .card.selected-review::before { content: "Review"; position: absolute; top: 10px; right: 10px; padding: 4px 8px; border-radius: 999px; background: var(--review); color: #5f4700; font-size: 0.72rem; font-weight: 800; }
+    .card.selected-final { border-color: var(--final); background: #edf6ee; }
+    .card.selected-final::before { content: "Marked"; position: absolute; top: 10px; right: 10px; padding: 4px 8px; border-radius: 999px; background: var(--final); color: white; font-size: 0.72rem; font-weight: 800; }
+    .empty { padding: 28px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: 16px; background: rgba(255,255,255,0.6); }
+    @media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .page { padding: 14px 12px 40px; } .hero { padding: 18px; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-grid">
+        <div>
+          <h1>Jewellery Mini Website</h1>
+          <p>Enter your name, choose a purpose, and review the selected pieces. This view is built from the same selected products used for PDF export.</p>
+          <div class="controls">
+            <div class="field">
+              <label for="userName">User name</label>
+              <input id="userName" placeholder="Enter your name">
+            </div>
+            <div class="field">
+              <label for="purpose">Purpose</label>
+              <select id="purpose">
+                <option value="review">Review</option>
+                <option value="final">Final</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button id="clearBtn" class="secondary" type="button">Clear selections</button>
+            </div>
+          </div>
+        </div>
+        <div class="share-card" id="shareCard">
+          <p class="title">Share this view</p>
+          <p class="sub" id="shareSummary">A polished QR-style card appears here for quick sharing.</p>
+          <div id="qrWrap" style="display:flex;justify-content:center;"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="meta">
+      <div class="pill" id="statusPill">Ready to review</div>
+      <div class="pill" id="summaryPill">0 selected</div>
+    </div>
+
+    <div id="inventoryGrid" class="grid"></div>
+  </div>
+
+  <script>
+    const inventory = ${inventoryJson};
+    const initialSelected = ${selectedJson};
+    const initialMiniWebsiteMeta = ${metaJson};
+    const storageKey = 'jewellery-mini-website-state';
+    let selectedSerials = new Set(initialSelected);
+    let purpose = initialMiniWebsiteMeta.purpose || 'review';
+
+    function normalizeStatus(status) {
+      const value = String(status || '').trim().toLowerCase();
+      return value.includes('marked') ? 'marked' : 'unmarked';
+    }
+
+    function getImageUrl(item) {
+      const candidates = [item.DisplayURL, item.CollageURL].filter(Boolean);
+      return candidates[0] || '';
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function createQrSvg(seed) {
+      const size = 21;
+      const cells = [];
+      const base = String(seed || 'jewellery');
+      const hash = Array.from(base).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+
+      for (let y = 0; y < size; y += 1) {
+        const row = [];
+        for (let x = 0; x < size; x += 1) {
+          const inFinder = (x < 7 && y < 7) || (x > 13 && y < 7) || (x < 7 && y > 13);
+          const shouldFill = inFinder ? true : ((hash + x * 13 + y * 7 + (x * y)) % 5) === 0;
+          row.push(shouldFill ? 1 : 0);
+        }
+        cells.push(row);
+      }
+
+      const squares = [];
+      cells.forEach((row, y) => {
+        row.forEach((value, x) => {
+          if (value) {
+            squares.push('<rect x="' + x + '" y="' + y + '" width="1" height="1" fill="#8b5d42"></rect>');
+          }
+        });
+      });
+
+      return '<svg viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg">' + squares.join('') + '</svg>';
+    }
+
+    function saveState() {
+      const payload = {
+        name: document.getElementById('userName').value,
+        purpose,
+        selected: Array.from(selectedSerials)
+      };
+      localStorage.setItem(storageKey, JSON.stringify(payload));
+    }
+
+    function restoreState() {
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (initialMiniWebsiteMeta.name) {
+          document.getElementById('userName').value = initialMiniWebsiteMeta.name;
+        }
+        if (initialMiniWebsiteMeta.purpose) {
+          purpose = initialMiniWebsiteMeta.purpose;
+        }
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!initialMiniWebsiteMeta.name && parsed.name) document.getElementById('userName').value = parsed.name;
+        if (!initialMiniWebsiteMeta.purpose && parsed.purpose) purpose = parsed.purpose;
+        if (Array.isArray(parsed.selected)) {
+          selectedSerials = new Set(parsed.selected);
+        }
+      } catch (err) {
+        console.warn('Could not restore mini website state', err);
+      }
+    }
+
+    function updateShareCard() {
+      const nameValue = document.getElementById('userName').value.trim() || 'Guest';
+      const qrWrap = document.getElementById('qrWrap');
+      const shareSummary = document.getElementById('shareSummary');
+      const seed = nameValue + '|' + purpose + '|' + Array.from(selectedSerials).join(',');
+      qrWrap.innerHTML = createQrSvg(seed);
+      shareSummary.textContent = purpose === 'final'
+        ? nameValue + ' is preparing the final tray for review.'
+        : nameValue + ' is sharing this selection for review.';
+    }
+
+    function render() {
+      const grid = document.getElementById('inventoryGrid');
+      const statusPill = document.getElementById('statusPill');
+      const summaryPill = document.getElementById('summaryPill');
+      const nameValue = document.getElementById('userName').value.trim();
+      const headingName = nameValue || 'Guest';
+      const stylistLabel = headingName === 'Guest' ? 'Stylist' : headingName;
+
+      if (!inventory.length) {
+        grid.innerHTML = '<div class="empty">No inventory available.</div>';
+        summaryPill.textContent = '0 selected';
+        updateShareCard();
+        return;
+      }
+
+      const cards = inventory.map((item) => {
+        const serial = item['Serial No'] || 'Unknown';
+        const hasSelection = selectedSerials.has(serial);
+        const stateClass = hasSelection ? (purpose === 'final' ? 'selected-final' : 'selected-review') : '';
+        const status = normalizeStatus(item.Status);
+        const label = status === 'marked' ? 'Marked' : 'Available';
+        const imageUrl = getImageUrl(item);
+
+        return [
+          '<article class="card ' + stateClass + '" data-serial="' + escapeHtml(serial) + '" role="button" tabindex="0">',
+          '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(serial) + '" onerror="this.style.display=\'none\'">',
+          '<div class="body">',
+          '<p class="title">' + escapeHtml(serial) + '</p>',
+          '<p class="sub">' + escapeHtml(item['Brand Name'] || '') + '</p>',
+          '<p class="sub">' + escapeHtml(item['Type'] || '') + '</p>',
+          '<p class="sub">Stylist: ' + escapeHtml(stylistLabel) + '</p>',
+          '<p class="sub">Purpose: ' + escapeHtml(purpose === 'final' ? 'Final' : 'Review') + '</p>',
+          '<p class="sub">' + escapeHtml(label) + '</p>',
+          '</div>',
+          '</article>'
+        ].join('');
+      }).join('');
+
+      grid.innerHTML = cards;
+      const cardsNodes = Array.from(grid.querySelectorAll('.card'));
+      cardsNodes.forEach((card) => {
+        card.addEventListener('click', () => toggleSelection(card.getAttribute('data-serial')));
+        card.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            toggleSelection(card.getAttribute('data-serial'));
+          }
+        });
+      });
+
+      summaryPill.textContent = selectedSerials.size + ' selected';
+      statusPill.textContent = purpose === 'final' ? stylistLabel + ', final mode' : stylistLabel + ', review mode';
+      updateShareCard();
+      saveState();
+    }
+
+    function toggleSelection(serial) {
+      if (!serial) return;
+      if (selectedSerials.has(serial)) {
+        selectedSerials.delete(serial);
+      } else {
+        selectedSerials.add(serial);
+      }
+      render();
+    }
+
+    document.getElementById('userName').addEventListener('input', render);
+    document.getElementById('purpose').addEventListener('change', (event) => {
+      purpose = event.target.value;
+      render();
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      selectedSerials = new Set();
+      render();
+    });
+
+    restoreState();
+    document.getElementById('purpose').value = purpose;
+    render();
+  </script>
+</body>
+</html>`;
+}
+
+function gatherMiniWebsiteMeta() {
+  const nameInput = document.getElementById("miniWebsiteNameInput");
+  const purposeSelect = document.getElementById("miniWebsitePurposeSelect");
+  const name = (nameInput ? nameInput.value : "").trim();
+  const purpose = purposeSelect ? purposeSelect.value : "review";
+  setMiniWebsiteMeta(name, purpose);
+  return { name: miniWebsiteMeta.name, purpose: miniWebsiteMeta.purpose };
+}
+
+async function exportMiniWebsite(meta = null) {
+  showSpinner(true);
+
+  try {
+    if (!selected.length) {
+      alert("Select products first, then share the mini website.");
+      return;
+    }
+
+    const resolvedMeta = meta || gatherMiniWebsiteMeta();
+    const inventoryItems = Array.isArray(data) && data.length
+      ? data
+      : await getInventoryForExport();
+
+    const html = buildMiniWebsiteHtml(inventoryItems, selected, resolvedMeta);
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const fileName = `jewellery-mini-website-${Date.now()}.html`;
+
+    openBlobPreview(blob, fileName);
+    triggerBlobDownload(blob, fileName);
+    closeMiniWebsiteModal();
+
+    alert(`Mini website created for ${resolvedMeta.name || "Guest"} with ${selected.length} selected product${selected.length === 1 ? "" : "s"}.`);
+  } catch (err) {
+    console.error(err);
+    alert("Unable to create the mini website. Please try again.");
+  } finally {
+    showSpinner(false);
+  }
+}
+
+function createMiniWebsiteFromModal() {
+  exportMiniWebsite(gatherMiniWebsiteMeta());
+}
+
+window.exportMiniWebsite = exportMiniWebsite;
+window.openMiniWebsiteModal = openMiniWebsiteModal;
+window.closeMiniWebsiteModal = closeMiniWebsiteModal;
+window.createMiniWebsiteFromModal = createMiniWebsiteFromModal;
 
 /* SPINNER */
 function showSpinner(show) {
