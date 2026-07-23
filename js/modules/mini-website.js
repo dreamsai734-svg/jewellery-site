@@ -260,8 +260,13 @@
     exportMiniWebsite(gatherMiniWebsiteMeta());
   }
 
+  // window.exportMiniWebsite = exportMiniWebsite;
+  // window.openMiniWebsiteModal = openMiniWebsiteModal;
+  // window.closeMiniWebsiteModal = closeMiniWebsiteModal;
+  // window.createMiniWebsiteFromModal = createMiniWebsiteFromModal;
   window.exportMiniWebsite = exportMiniWebsite;
   window.openMiniWebsiteModal = openMiniWebsiteModal;
   window.closeMiniWebsiteModal = closeMiniWebsiteModal;
   window.createMiniWebsiteFromModal = createMiniWebsiteFromModal;
+  window.updateMiniWebsiteModalPreview = updateMiniWebsiteModalPreview;
 })();
