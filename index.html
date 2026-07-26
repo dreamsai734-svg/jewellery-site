@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Jewellery Catalog PDF Studio</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description"
+    content="Jewellery Catalog PDF Studio — browse your catalog, curate selections, and export polished client-ready PDF documents.">
+  <meta name="theme-color" content="#faf9f6">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap"
+    rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/css/variables.css">
+  <link rel="stylesheet" href="assets/css/base.css">
+  <link rel="stylesheet" href="assets/css/layout.css">
+  <link rel="stylesheet" href="assets/css/components.css">
+  <link rel="stylesheet" href="assets/css/cards.css">
+  <link rel="stylesheet" href="assets/css/preview.css">
+  <link rel="stylesheet" href="assets/css/responsive.css">
+  <link rel="stylesheet" href="assets/css/mini-website.css">
+  <link rel="stylesheet" href="assets/css/vrai-homepage.css">
+</head>
+
+<body>
+
+  <header class="studio-navbar">
+    <div class="studio-nav-container">
+      <a href="#" class="studio-brand-logo">
+        ASCEND
+        <span class="studio-brand-badge">COMMUNICATION</span>
+      </a>
+
+      <div class="studio-nav-tabs">
+        <button id="tabBrowseBtn" class="studio-nav-tab active" onclick="switchTab('browse')" role="tab">Browse
+          Catalogue</button>
+        <button id="tabSelectedBtn" class="studio-nav-tab" onclick="switchTab('selected')" role="tab">Selected
+          Items</button>
+        <button id="tabFinalTrayBtn" class="studio-nav-tab" onclick="switchTab('finalTray')" role="tab">Final
+          Tray</button>
+      </div>
+
+      <div class="studio-nav-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openMiniWebsiteModal()">Share Mini Website</button>
+        <button class="btn btn-primary btn-sm" onclick="generateSelectionPdf()">Export PDF</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="studio-hero">
+    <div class="studio-hero-container">
+      <div class="studio-hero-copy">
+        <span class="studio-brand-badge" style="margin-bottom: 14px; display: inline-block;">CATALOG STUDIO</span>
+        <h1 class="studio-hero-title">High Jewelry &amp; PDF Studio</h1>
+        <p class="studio-hero-description">Browse inventory, select client pieces, preview high-resolution PDF
+          catalogues, and generate publication-ready exports instantly.</p>
+
+        <div class="actions" style="margin-bottom: 32px;">
+          <button class="btn btn-primary" onclick="generateSelectionPdf()">Create Selection PDF</button>
+          <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download Sample</button>
+          <button class="btn btn-secondary" onclick="openMiniWebsiteModal()">Share Mini Website</button>
+        </div>
+
+        <div class="studio-hero-stats">
+          <div class="studio-stat-card accent">
+            <span id="statTotal">0</span>
+            <p>Total Items</p>
+          </div>
+          <div class="studio-stat-card">
+            <span id="statAvailable">0</span>
+            <p>Available</p>
+          </div>
+          <div class="studio-stat-card">
+            <span id="statSelected">0</span>
+            <p>Selected</p>
+          </div>
+          <div class="studio-stat-card accent">
+            <span id="statMarked">0</span>
+            <p>Marked</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="studio-hero-visual">
+        <div class="studio-hero-image-card">
+          <img src="diego-castaneda-aSApmmYaB0s-unsplash.jpg" alt="Ascend High Jewelry Showcase">
+          <div class="studio-hero-image-overlay">
+            <span class="studio-hero-badge">Featured Showcase</span>
+            <h4>Bespoke Masterpiece Collection</h4>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="page-shell browse-active">
+
+    <main class="workspace">
+      <section class="workspace-main">
+
+        <section id="browseTab" class="tab-section active">
+          <div id="categoryBar" class="category-bar"></div>
+
+          <div class="panel controls-panel floating-panel">
+            <div class="panel-heading compact controls-heading">
+              <div>
+                <p class="eyebrow small">Catalogue Controls</p>
+                <h3 id="gridSummaryHeading">0 visible items</h3>
+              </div>
+              <div class="heading-actions">
+                <div class="filter-menu-wrap">
+                  <button id="filterToggleBtn" class="btn btn-primary filter-toggle-btn"
+                    onclick="toggleFilterMenu(event)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="16"
+                      height="16">
+                      <line x1="4" y1="6" x2="20" y2="6"></line>
+                      <line x1="7" y1="12" x2="17" y2="12"></line>
+                      <line x1="10" y1="18" x2="14" y2="18"></line>
+                    </svg>
+                    Filters
+                    <span id="filterActiveBadge" class="filter-active-badge hidden">0</span>
+                  </button>
+
+                  <div id="controlsContent" class="controls-content filter-dropdown hidden">
+                    <button type="button" id="breakdownToggleBtn" class="btn btn-secondary btn-sm breakdown-toggle-btn"
+                      onclick="toggleBreakdown(event)">View brand &amp; type breakdown</button>
+                    <div id="countSummary" class="count-summary hidden"></div>
+                    <div class="controls">
+                      <input id="searchSerial" type="text" placeholder="Search by serial" oninput="onSearchInput()"
+                        class="search-input">
+                      <select id="filterType" onchange="onFilterChanged()" aria-label="Filter by type"></select>
+                      <select id="filterBrand" onchange="onFilterChanged()" aria-label="Filter by brand"></select>
+                      <select id="sortBy" onchange="onFilterChanged()" aria-label="Sort items">
+                        <option value="">Sort by</option>
+                        <option value="serial">Serial No.</option>
+                        <option value="brand">Brand</option>
+                        <option value="type">Type</option>
+                      </select>
+                      <select id="filterStatus" onchange="onFilterChanged()" aria-label="Filter by status">
+                        <option value="">All status</option>
+                        <option value="unmarked">Unmarked</option>
+                        <option value="marked">Marked</option>
+                      </select>
+                      <label class="hide-marked-toggle">
+                        <input id="hideMarked" type="checkbox" checked onchange="onFilterChanged()">
+                        Hide marked
+                      </label>
+                      <button id="selectAllFilteredBtn" class="btn btn-secondary" onclick="selectAllByBrand()">Select matching items</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel grid-panel floating-panel">
+            <div class="grid" id="grid"></div>
+            <div class="grid-pager" id="gridPager">
+              <button class="btn btn-secondary pager-btn" onclick="goToPrevPage()">Previous</button>
+              <p id="gridPageInfo" class="panel-meta">Page 1 of 1</p>
+              <button class="btn btn-secondary pager-btn" onclick="goToNextPage()">Next</button>
+              <select id="pageSize" onchange="changePageSize(this.value)">
+                <option value="24">24 / page</option>
+                <option value="36" selected>36 / page</option>
+                <option value="48">48 / page</option>
+                <option value="72">72 / page</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <section id="selectedTab" class="tab-section">
+          <div class="panel floating-panel">
+            <div class="panel-heading compact">
+              <div>
+                <p class="eyebrow small">Selection</p>
+                <h3>Items queued for export</h3>
+              </div>
+              <p id="selectedSummary" class="panel-meta">0 selected items</p>
+            </div>
+
+            <div class="bulk-toolbar">
+              <button class="btn btn-secondary btn-sm" onclick="clearAllSelected()">Clear all</button>
+              <button class="btn btn-secondary btn-sm" onclick="removeMarkedFromSelected()">Remove marked items</button>
+            </div>
+
+            <div id="selectedArea" class="selection-grid"></div>
+            <div class="grid-pager" id="selectedPager">
+              <button id="selectedPrevBtn" class="btn btn-secondary pager-btn"
+                onclick="goToPrevSelectedPage()">Previous</button>
+              <p id="selectedPageInfo" class="panel-meta">Page 1 of 1</p>
+              <button id="selectedNextBtn" class="btn btn-secondary pager-btn"
+                onclick="goToNextSelectedPage()">Next</button>
+              <select id="selectedPageSize" onchange="changeSelectedPageSize(this.value)">
+                <option value="24" selected>24 / page</option>
+                <option value="36">36 / page</option>
+                <option value="48">48 / page</option>
+                <option value="72">72 / page</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="actions primary-actions floating-panel">
+            <button class="btn btn-primary" onclick="generateSelectionPdf()">Create selection PDF</button>
+            <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download selection PDF</button>
+            <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download cover page</button>
+            <button class="btn btn-secondary" onclick="shareCurrentPdf()">Share via WhatsApp</button>
+            <button class="btn btn-secondary" onclick="openMiniWebsiteModal()">Share mini website</button>
+          </div>
+        </section>
+
+        <section id="finalTrayTab" class="tab-section">
+          <div class="panel final-tray-panel floating-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow small">Final tray</p>
+                <h3>Build the final client list</h3>
+              </div>
+              <p class="panel-meta">Paste serial numbers, add items, and generate a final tray PDF.</p>
+            </div>
+
+            <div class="final-tray-entry">
+              <textarea id="serialBulkInput" rows="5"
+                placeholder="Paste serial codes separated by comma, semicolon, or new line. Example: RING-AB1234 NECK-XY9876"></textarea>
+              <button class="btn btn-secondary" type="button" onclick="addBulkSerialsToFinalTray()">Add codes to
+                tray</button>
+            </div>
+
+            <div class="final-tray-search-shell">
+              <label for="finalTraySearchInput">Search or add serial code</label>
+              <input id="finalTraySearchInput" type="text" autocomplete="off"
+                placeholder="Type a code to find suggestions and press Enter to add">
+              <div id="finalTraySuggestions" class="final-tray-suggestions hidden"></div>
+            </div>
+
+            <div id="finalTrayListMeta" class="panel-meta">0 codes in final tray</div>
+            <div id="finalTrayList" class="final-tray-list"></div>
+
+            <div class="actions primary-actions">
+              <button class="btn btn-primary" onclick="generateFinalTrayFromSerials()">Create final tray PDF</button>
+              <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download final tray PDF</button>
+              <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download cover page</button>
+              <button class="btn btn-secondary" onclick="shareFinalTrayPdf()">Share final tray PDF</button>
+            </div>
+            <div id="serialFeedback" class="feedback"></div>
+          </div>
+        </section>
+      </section>
+
+      <aside class="workspace-side">
+        <div class="panel preview-panel floating-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow small">Live preview</p>
+              <h3>Preview generated PDF</h3>
+            </div>
+            <p id="pdfMeta" class="panel-meta">No PDF generated yet</p>
+          </div>
+
+          <div class="pdf-preview-shell">
+            <div id="previewPlaceholder" class="preview-placeholder">
+              <strong>Generate a PDF to preview it here.</strong>
+              <span>The preview will update after a selection or final tray PDF is created.</span>
+            </div>
+            <iframe id="pdfPreviewFrame" title="Jewellery PDF Preview"></iframe>
+          </div>
+
+          <div class="panel mini-preview-panel floating-panel" style="margin-top: 12px;">
+            <div class="panel-heading compact">
+              <div>
+                <p class="eyebrow small">Mini website preview</p>
+                <h3>Preview before sharing</h3>
+              </div>
+            </div>
+            <div id="miniWebsitePreview" class="mini-website-preview">
+              <p class="panel-meta">Choose a user name and purpose, then preview the mini website here before sharing.
+              </p>
+            </div>
+            <div class="actions secondary-actions preview-actions"
+              style="margin-top: 12px; justify-content: flex-start;">
+              <button class="btn btn-secondary" onclick="openMiniWebsiteModal()">Create mini website preview</button>
+            </div>
+          </div>
+
+          <div class="actions secondary-actions preview-actions">
+            <button class="btn btn-secondary" onclick="downloadCurrentPdf()">Download current PDF</button>
+            <button class="btn btn-secondary" onclick="downloadCoverPdf()">Download cover page</button>
+            <button class="btn btn-secondary" onclick="shareCurrentPdf()">Share current PDF</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <div id="spinner" class="spinner hidden">
+      <div class="loader"></div>
+      <p>Preparing PDF…</p>
+    </div>
+  </div>
+
+  <div id="miniWebsiteModal" class="mini-website-modal hidden" role="dialog" aria-modal="true"
+    aria-labelledby="miniWebsiteModalTitle">
+    <div class="mini-website-modal-card">
+      <div class="panel-heading compact">
+        <div>
+          <p class="eyebrow small">Mini website setup</p>
+          <h3 id="miniWebsiteModalTitle">Create a polished handoff</h3>
+        </div>
+      </div>
+
+      <div class="mini-website-field">
+        <label for="miniWebsiteNameInput">User name</label>
+        <input id="miniWebsiteNameInput" type="text" placeholder="Enter the stylist or client name">
+      </div>
+
+      <div class="mini-website-field">
+        <label for="miniWebsitePurposeSelect">Purpose</label>
+        <select id="miniWebsitePurposeSelect">
+          <option value="review">Review</option>
+          <option value="final">Final</option>
+        </select>
+      </div>
+
+      <div id="miniWebsiteModalPreview" class="mini-website-preview"></div>
+
+      <div class="actions secondary-actions preview-actions" style="margin-top: 14px; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeMiniWebsiteModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="createMiniWebsiteFromModal()">Create mini website</button>
+      </div>
+      <footer class="vrai-footer" style="background:#121212; color:#fff; padding: 40px 32px; margin-top: 60px;">
+        <div
+          style="max-width: 1440px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #888;">
+          <p>&copy; 2026 Ascend Jewellery Catalog PDF Studio &bull; All Rights Reserved.</p>
+          <p>Client PDF Export &bull; Digital Handoff Studio</p>
+        </div>
+      </footer>
+
+      <script src="assets/js/vendor/jspdf.min.js" defer></script>
+      <script src="assets/js/vendor/html2canvas.min.js" defer></script>
+      <script src="js/pdf/pdf.js" defer></script>
+      <script src="js/modules/catalog-data.js" defer></script>
+      <script src="js/modules/mini-website.js" defer></script>
+      <script src="js/app.js" defer></script>
+</body>
+
+</html>
